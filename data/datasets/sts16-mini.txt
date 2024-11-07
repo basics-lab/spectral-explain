@@ -1,0 +1,100 @@
+{"split": "test", "sentence1": "in the us , it will depend on the school .", "sentence2": "it really depends on the school and the program .", "score": 3.0}
+{"split": "test", "sentence1": "it depends on what you want to have in your tank .", "sentence2": "i think it depends what you want :", "score": 2.0}
+{"split": "test", "sentence1": "it probably depends on the cut of meat .", "sentence2": "it depends on the meat and how it 's cut .", "score": 4.0}
+{"split": "test", "sentence1": "you can buy it on amazon for $ 5 .", "sentence2": "you can buy it on ebay for $ 25 and up .", "score": 2.0}
+{"split": "test", "sentence1": "there are two ways to start with : plunging and dripping .", "sentence2": "there are two traditional ways to bend wood :", "score": 0.0}
+{"split": "test", "sentence1": "it very much depends on the grant in question .", "sentence2": "i think it depends very much on the area .", "score": 2.0}
+{"split": "test", "sentence1": "this is not a good idea .", "sentence2": "this is probably not a good idea but i will suggest it anyhow .", "score": 2.0}
+{"split": "test", "sentence1": "i 'd say it primarily depends on two things :", "sentence2": "i 'd say it depends what conditions you have .", "score": 2.0}
+{"split": "test", "sentence1": "i think you 're looking for mikey ( 1992 ) .", "sentence2": "i think you 're looking for the movie", "score": 3.0}
+{"split": "test", "sentence1": "i think it 's fine to ask this question .", "sentence2": "i think it is okay to ask the question .", "score": 5.0}
+{"split": "test", "sentence1": "i 'm going to be very direct here .", "sentence2": "i 'm going to be blunt , here : you don 't .", "score": 4.0}
+{"split": "test", "sentence1": "this is not a good idea .", "sentence2": "this is probably not a good idea but i will suggest it anyhow .", "score": 2.0}
+{"split": "test", "sentence1": "i 'd say it primarily depends on two things :", "sentence2": "i 'd say it depends what conditions you have .", "score": 2.0}
+{"split": "test", "sentence1": "i think you 're looking for mikey ( 1992 ) .", "sentence2": "i think you 're looking for the movie", "score": 3.0}
+{"split": "test", "sentence1": "i think it 's fine to ask this question .", "sentence2": "i think it is okay to ask the question .", "score": 5.0}
+{"split": "test", "sentence1": "i 'm going to be very direct here .", "sentence2": "i 'm going to be blunt , here : you don 't .", "score": 4.0}
+{"split": "test", "sentence1": "it depends entirely on your company and your contract .", "sentence2": "i guess it depends on the nature of your contract .", "score": 4.0}
+{"split": "test", "sentence1": "unfortunately the answer to your question is we simply do not know .", "sentence2": "the answer to your question is not really .", "score": 1.0}
+{"split": "test", "sentence1": "it depends on what you want to have in your tank .", "sentence2": "it depends on what you want to achieve .", "score": 2.0}
+{"split": "test", "sentence1": "you don 't have to worry .", "sentence2": "since you have one ticket , you don 't have to worry .", "score": 3.0}
+{"split": "test", "sentence1": "vietnamese citizens need a visa to visit the usa .", "sentence2": "nepalese citizens require a visa to visit the uk .", "score": 1.0}
+{"split": "test", "sentence1": "that is your problem , not your supervisor 's .", "sentence2": "work with your supervisor and your team to solve the problem .", "score": 2.0}
+{"split": "test", "sentence1": "the wood probably isn 't rotten , it 's just worn out .", "sentence2": "it 's just worn out and not safe .", "score": 3.0}
+{"split": "test", "sentence1": "well , i wouldn 't put it on my cv .", "sentence2": "i wouldn 't put this job on my resume .", "score": 4.0}
+{"split": "test", "sentence1": "i think it is depends on the program .", "sentence2": "it depends on how the term is used i think .", "score": 2.0}
+{"split": "test", "sentence1": "i think there isn 't a general answer .", "sentence2": "i don 't think there is an answer for this .", "score": 4.0}
+{"split": "test", "sentence1": "you don 't have to know .", "sentence2": "you don 't have equipments / facilities to do research in b .", "score": 0.0}
+{"split": "test", "sentence1": "there are a few things i think you should do .", "sentence2": "there are a few things i don 't understand :", "score": 0.0}
+{"split": "test", "sentence1": "i think it is great that you had a test conducted .", "sentence2": "i think that 's a great plan .", "score": 2.0}
+{"split": "test", "sentence1": "i 'm going to go out on a limb here ...", "sentence2": "i 'm going to be very direct here .", "score": 2.0}
+{"split": "test", "sentence1": "unfortunately , this question cannot be answered in its full generality .", "sentence2": "this cannot be answered in general .", "score": 4.0}
+{"split": "test", "sentence1": "my answer to your question is \" probably not \" .", "sentence2": "the answer to your question is not really .", "score": 4.0}
+{"split": "test", "sentence1": "hope this is what you are looking for .", "sentence2": "is this the kind of thing you 're looking for ?", "score": 4.0}
+{"split": "test", "sentence1": "there are a few things you can do :", "sentence2": "there are a few things you need to consider :", "score": 4.0}
+{"split": "test", "sentence1": "it is impossible to answer this question without a form check .", "sentence2": "this is a part answer to your question", "score": 0.0}
+{"split": "test", "sentence1": "there are a few things you can do :", "sentence2": "there are a few things i think you should do .", "score": 3.0}
+{"split": "test", "sentence1": "it 's not a good idea .", "sentence2": "it 's not just a good idea , it 's an excellent idea .", "score": 1.0}
+{"split": "test", "sentence1": "yes , there is a reason to not do what you propose .", "sentence2": "yes , there is a chemical difference .", "score": 0.0}
+{"split": "test", "sentence1": "yes , there is at least one to my knowledge .", "sentence2": "to my knowledge , there 's no time requirement .", "score": 1.0}
+{"split": "test", "sentence1": "you may have to experiment and find what you like .", "sentence2": "you have to find out what works for you .", "score": 5.0}
+{"split": "test", "sentence1": "my answer to your question is \" probably not \" .", "sentence2": "this is a part answer to your question", "score": 1.0}
+{"split": "test", "sentence1": "driver backs into stroller with child , drives off", "sentence2": "driver backs into mom , stroller with child then drives off", "score": 4.0}
+{"split": "test", "sentence1": "us senate confirms janet yellen as us federal reserve chief", "sentence2": "senate confirms janet yellen as next federal reserve chair", "score": 5.0}
+{"split": "test", "sentence1": "rocks , tear gas fly as thai protests heat up", "sentence2": "rocks , tear gas fly as thai protests heat up", "score": 5.0}
+{"split": "test", "sentence1": "china army newspaper hits out at us 's prism programme", "sentence2": "china army newspaper slams us 's prism program", "score": 5.0}
+{"split": "test", "sentence1": "couple marry in the uk 's first scientology wedding", "sentence2": "couple get married in britain 's first scientology wedding", "score": 5.0}
+{"split": "test", "sentence1": "senate confirms janet yellen as chair of us federal reserve", "sentence2": "senate confirms janet yellen as next federal reserve chair", "score": 5.0}
+{"split": "test", "sentence1": "egypt braces for ' friday of anger ' after carnage", "sentence2": "egypt braces for friday of anger after bloody crackdown", "score": 4.0}
+{"split": "test", "sentence1": "red sox beat tigers 5-2 to advance to world series", "sentence2": "red sox beat tigers to reach world series", "score": 4.0}
+{"split": "test", "sentence1": "cars , drivers plunge into river after wash . i-5 bridge collapse", "sentence2": "cars plunge into river as us bridge collapses", "score": 3.0}
+{"split": "test", "sentence1": "first post office savings bank atm opens in chennai", "sentence2": "india 's first post office savings bank atm inaugurated in chennai", "score": 4.0}
+{"split": "test", "sentence1": "quake of 6.2 magnitude strikes off indonesia 's sumatra - usgs", "sentence2": "earthquake of 6.9 magnitude strikes off indonesia island", "score": 3.0}
+{"split": "test", "sentence1": "british stuntman fell to his death in wing suit mishap", "sentence2": "british stuntman dies in wingsuit mishap in alps", "score": 4.0}
+{"split": "test", "sentence1": "euro crisis is over , says france 's francois hollande", "sentence2": "eurozone debt crisis is over , says france 's president", "score": 4.0}
+{"split": "test", "sentence1": "what makes india vote ? jaipur lit fest debates", "sentence2": "what makes india vote ? debate at jaipur literature festival", "score": 5.0}
+{"split": "test", "sentence1": "treasury proposal sees 1.5 % increase in income tax", "sentence2": "treasury proposes 1.5 % income tax raise in budget", "score": 4.0}
+{"split": "test", "sentence1": "hamas urges hizbullah to pull fighters out of syria", "sentence2": "hamas calls on hezbollah to pull forces out of syria", "score": 5.0}
+{"split": "test", "sentence1": "us ups pressure on israel as un demands gaza truce", "sentence2": "us , un up pressure on israel over gaza", "score": 4.0}
+{"split": "test", "sentence1": "australian pm says ' very confident ' signals are from black box", "sentence2": "australian pm confident sounds are from flight 370", "score": 4.0}
+{"split": "test", "sentence1": "mandela 's condition has ' improved'", "sentence2": "mandela 's condition has ' worsened over past 48 hours'", "score": 1.0}
+{"split": "test", "sentence1": "north korea says to put us citizen on trial", "sentence2": "north korea says detained american tourist to face trial", "score": 5.0}
+{"split": "test", "sentence1": "rallies demand ' justice for trayvon'", "sentence2": "across us , people rally for ' justice for trayvon'", "score": 4.0}
+{"split": "test", "sentence1": "hagel , dempsey face congress over defense budget", "sentence2": "hagel laments \" political \" changes to us defence budget", "score": 4.0}
+{"split": "test", "sentence1": "man kills 4 in calif. before police shoot him dead", "sentence2": "police : gunman killed 6 in california shootings", "score": 2.0}
+{"split": "test", "sentence1": "search leader urges caution in findings related to missing malaysian jetliner", "sentence2": "searchers hoping pings come from lost malaysian airliner", "score": 1.0}
+{"split": "test", "sentence1": "mandela remembered by family , as stadium memorial service is planned", "sentence2": "mandela 's family thanks nation and world for support", "score": 1.0}
+{"split": "test", "sentence1": "obama mulls limited military action in syria", "sentence2": "obama urges military action against syria , but will seek congress ' ok", "score": 2.0}
+{"split": "test", "sentence1": "george zimmerman found not guilty of trayvon martin murder", "sentence2": "george zimmerman verdict propels cable news into talkradio mode", "score": 1.0}
+{"split": "test", "sentence1": "russian parliament allows putin to use military in ukraine", "sentence2": "president obama warns russia to stay out of ukraine", "score": 1.0}
+{"split": "test", "sentence1": "tycoon claims win in ukraine and promises to seek future in eu", "sentence2": "polling stations open at ukrainian presidential election", "score": 0.0}
+{"split": "test", "sentence1": "syria agrees to surrender chemical weapons", "sentence2": "uk 's cameron : syria , russia must show chemical arms proposal is genuine", "score": 2.0}
+{"split": "test", "sentence1": "russia 's putin claims authority to invade ukraine", "sentence2": "kremlin : putin yet to decide on using russian troops in ukraine", "score": 2.0}
+{"split": "test", "sentence1": "senior cpc official meets top dprk leader 's special envoy", "sentence2": "north korean leader sends ' special envoy ' to china", "score": 3.0}
+{"split": "test", "sentence1": "pope calls for action on climate change in draft encyclical", "sentence2": "pope urges action on climate change in draft encyclical", "score": 5.0}
+{"split": "test", "sentence1": "militant attack from afghanistan kills four in upper dir", "sentence2": "militant attack from afghanistan kills fc soldier in balochistan", "score": 3.0}
+{"split": "test", "sentence1": "4 killed , several injured in sw china car accident", "sentence2": "two killed , seventeen injured in raiwind road accident", "score": 0.0}
+{"split": "test", "sentence1": "more than 3,400 migrants rescued at sea in mediterranean", "sentence2": "over 2,000 migrants rescued from wooden boats in mediterranean", "score": 3.0}
+{"split": "test", "sentence1": "un security council hears yemen envoy 's final ...", "sentence2": "un security council urges yemen 's houthis to end ...", "score": 2.0}
+{"split": "test", "sentence1": "4 dead , 3 injured in east china road accident", "sentence2": "2 dead , 8 injured in central israel traffic accident", "score": 0.0}
+{"split": "test", "sentence1": "palestinians , israeli police clash at jerusalem 's al-aqsa", "sentence2": "palestinian shot by israeli police in east jerusalem dies", "score": 2.0}
+{"split": "test", "sentence1": "israeli police clash with palestinian protesters at sensitive jerusalem holy site", "sentence2": "israel police clash with palestinians in jerusalem", "score": 3.0}
+{"split": "test", "sentence1": "islamic state issues video of beheading of us hostage", "sentence2": "islamic state posts second propaganda video of uk hostage", "score": 3.0}
+{"split": "test", "sentence1": "5 killed in israeli air strikes in gaza", "sentence2": "38 is militants killed in clashes , air strikes in iraq", "score": 0.0}
+{"split": "test", "sentence1": "funeral of ian paisley to take place in belfast", "sentence2": "funeral of mh17 victim liam sweeney takes place in newcastle", "score": 0.0}
+{"split": "test", "sentence1": "rooney helps man united beat everton 3-0 in premier league", "sentence2": "west ham beats newcastle 2-0 in premier league", "score": 1.0}
+{"split": "test", "sentence1": "egypt : ipi urges release of al jazeera journalist arrested in berlin", "sentence2": "egypt sentences al jazeera journalists to jail", "score": 1.0}
+{"split": "test", "sentence1": "libya : un orders investigation into libya rights abuses", "sentence2": "india 's top court orders investigation into job scam , deaths", "score": 0.0}
+{"split": "test", "sentence1": "oscar pistorius sentenced to 5 years in prison", "sentence2": "'bookkeeper of auschwitz ' sentenced to four years in prison", "score": 0.0}
+{"split": "test", "sentence1": "south korea regrets north 's refusal of talks", "sentence2": "south korea reports 14th mers death , 12 new cases", "score": 1.0}
+{"split": "test", "sentence1": "plane crash site search called off for the night", "sentence2": "tour de france pack sets off for stage 15", "score": 0.0}
+{"split": "test", "sentence1": "editors from around the world urge turkey to protect media", "sentence2": "media freedom at stake as turkey fights rebels", "score": 2.0}
+{"split": "test", "sentence1": "who abandoned 3 boeing planes at the airport ?", "sentence2": "police abandon posts in lesotho , fear for lives", "score": 0.0}
+{"split": "test", "sentence1": "ebola uk : nhs staff ' panicked ' after suspected ebola cases", "sentence2": "uk says investigating 2 suspected mers cases", "score": 0.0}
+{"split": "test", "sentence1": "how much do you know about secret service ?", "sentence2": "lawmakers from both sides express outrage at secret service", "score": 1.0}
+{"split": "test", "sentence1": "two palestinians die in attacks on israelis ahead of kerry visit", "sentence2": "palestinian official slams israel 's stone-throwing bill", "score": 0.0}
+{"split": "test", "sentence1": "thomas cook accused of putting costs before customers", "sentence2": "university of florida frat accused of spitting on wounded war veterans", "score": 0.0}
+{"split": "test", "sentence1": "narendra modi ' photoshopped ' image of chennai floods visit goes viral", "sentence2": "pm narendra modi speaks of non-discrimination and equality", "score": 0.0}
+{"split": "test", "sentence1": "obama struggles to soothe saudi fears as iran talks resume", "sentence2": "myanmar struggles to finalize voter lists for sunday polls", "score": 0.0}
+{"split": "test", "sentence1": "volkswagen skids into red in wake of pollution scandal", "sentence2": "volkswagen 's \" gesture of goodwill \" to diesel owners", "score": 2.0}
+{"split": "test", "sentence1": "two australians killed in kenya after bus crashed into river", "sentence2": "permalink to two killed in germany train accident", "score": 0.0}
