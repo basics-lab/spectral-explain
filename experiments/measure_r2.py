@@ -72,8 +72,6 @@ if __name__ == "__main__":
     DEVICE = 'cpu'
     NUM_EXPLAIN = 100
 
-    get_dataset("parkinsons", 10)
-
     METHODS = ['linear_first', 'linear_second', 'lasso_first', 'lasso_second', 'amp_first', 'amp_second', 'qsft_hard', 'qsft_soft']
     MAX_B = 8
     count_b = MAX_B - 2
