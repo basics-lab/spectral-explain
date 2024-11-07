@@ -1,14 +1,13 @@
 import numpy as np
-from data.dataloader import get_dataset
-from models.modelloader import get_model
-import itertools
-from support_recovery import sampling_strategy, support_recovery
-from qsft.qsft import fit_regression, transform_via_amp
-from qsft.utils import qary_ints_low_order
+from spectral_explain.dataloader import get_dataset
+from spectral_explain.models.modelloader import get_model
+from spectral_explain.support_recovery import sampling_strategy, support_recovery
+from spectral_explain.qsft.qsft import fit_regression, transform_via_amp
+from spectral_explain.qsft.utils import qary_ints_low_order
 import pickle
 import time
 import os
-from utils import estimate_r2
+from spectral_explain.utils import estimate_r2
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -72,6 +71,8 @@ if __name__ == "__main__":
     TASK = 'cancer'
     DEVICE = 'cpu'
     NUM_EXPLAIN = 100
+
+    get_dataset("parkinsons", 10)
 
     METHODS = ['linear_first', 'linear_second', 'lasso_first', 'lasso_second', 'amp_first', 'amp_second', 'qsft_hard', 'qsft_soft']
     MAX_B = 8

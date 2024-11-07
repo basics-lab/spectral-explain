@@ -13,7 +13,7 @@ from sklearn.model_selection import GridSearchCV
 from functools import partial
 import random
 import copy
-from baselines.amp.AMPSolver import AMPSolver
+from spectral_explain.baselines.amp.AMPSolver import AMPSolver
 from celer import LassoCV
 
 logger = logging.getLogger(__name__)

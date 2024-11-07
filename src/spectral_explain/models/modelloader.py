@@ -6,7 +6,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModel
 import torch.nn.functional as F
 import torch
 from tqdm import tqdm
-from data.dataloader import get_dataset
+from spectral_explain.dataloader import get_dataset
 
 
 class TextModel:

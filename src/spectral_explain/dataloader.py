@@ -20,7 +20,6 @@ nltk.download('punkt_tab')
 import string
 import json
 
-
 def scaler_classification(X_train, X_test, y_train, y_test):
     s = StandardScaler()
     X_train = s.fit_transform(X_train)
@@ -127,12 +126,10 @@ class Reviews(TextDataset):
         self.name = 'IMDBReviews'
 
     def load(self, mini):
-        import os
-        os.getcwd()
         self.documents = []
         stop_words = set(stopwords.words('english'))
         stop_words.update(string.punctuation)
-        filename = '../data/datasets/reviews-mini.txt' if mini else '../data/datasets/reviews.txt'
+        filename = 'data/reviews-mini.txt' if mini else 'data/reviews.txt'
         with open(filename) as file:
             dataset = [line.rstrip() for line in file]
 
@@ -161,7 +158,7 @@ class STS16(TextDataset):
 
     def load(self, mini):
         self.documents = []
-        filename = '../data/datasets/sts16-mini.txt' if mini else '../data/datasets/sts16.txt'
+        filename = 'data/sts16-mini.txt' if mini else 'data/sts16.txt'
         with open(filename) as file:
             for line in file:
                 sentence_dict = json.loads(line)
@@ -199,7 +196,7 @@ class Race(TextDataset):
         self.documents = []
         stop_words = set(stopwords.words('english'))
         stop_words.update(string.punctuation)
-        filename = '../data/datasets/race-mini.txt' if mini else '../data/datasets/race.txt'
+        filename = 'data/race-mini.txt' if mini else 'data/race.txt'
 
         with open(filename) as file:
             for line in file:
@@ -243,7 +240,7 @@ class MedQA(TextDataset):
         stop_words = set(stopwords.words('english'))
         stop_words.update(string.punctuation)
 
-        with open('../data/datasets/medqa.txt') as file:
+        with open('data/medqa.txt') as file:
             for line in file:
                 question_dict = json.loads(line)
                 # split question into context and question

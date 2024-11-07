@@ -1,6 +1,6 @@
-from qsft.query import get_bch_decoder
-from qsft.qsft import transform
-from qsft.input_signal_subsampled import SubsampledSignal
+from spectral_explain.qsft.query import get_bch_decoder
+from spectral_explain.qsft.qsft import transform
+from spectral_explain.qsft.input_signal_subsampled import SubsampledSignal
 
 
 def sampling_strategy(sampling_function, max_b, n, sample_save_dir, t=5):
