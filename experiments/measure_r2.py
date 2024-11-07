@@ -69,7 +69,7 @@ if __name__ == "__main__":
     # choose TASK from parkings, cancer, sentiment,
     # sentiment_mini, similarity, similarity_mini,
     # comprehension, comprehension_mini, clinical
-    TASK = 'sentiment_mini'
+    TASK = 'cancer'
     DEVICE = 'cpu'
     NUM_EXPLAIN = 100
 
