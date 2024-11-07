@@ -36,3 +36,9 @@ To add a new dependency, run
 ```
 poetry add <package-name>
 ```
+
+For developing on VSCode or PyCharm, get the path of the Python interpreter with
+```
+poetry env info --executable
+```
+and use it as your interpreter.
