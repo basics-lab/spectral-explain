@@ -10,7 +10,7 @@ git clone git@github.com:basics-lab/spectral-explain.git
 cd spectral-explain
 ```
 
-3. Install a virtual Python environment with necessary dependencies
+3. Create a virtual Python environmenta and install the necessary dependencies
 ```
 poetry install
 ```
