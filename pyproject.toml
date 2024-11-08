@@ -6,7 +6,7 @@ authors = ["Landon Butler, Efe Erginbas, Justin Kang, Abhineet Agarwal"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10.1"
 numpy = "^1.22"
 pandas = "^2.2.2"
 galois = "0.4.2"
@@ -17,8 +17,8 @@ xgboost = "^2.1.2"
 transformers = "^4.46.1"
 torch = "^2.5.1"
 nltk = "^3.9.1"
-mujoco-py = "^2.1.2.14"
-celer = "^0.7.3"
+mujoco-py = "^2.1.2"
+celer = "^0.7.1"
 
 [tool.poetry.dev-dependencies]
 ipykernel = "*"
