@@ -2,6 +2,8 @@ from spectral_explain.qsft.query import get_bch_decoder
 from spectral_explain.qsft.qsft import transform
 from spectral_explain.qsft.input_signal_subsampled import SubsampledSignal
 
+def get_num_samples(signal, b):
+    return len(signal.all_samples) * len(signal.all_samples[0]) * (2 ** b)
 
 def sampling_strategy(sampling_function, max_b, n, sample_save_dir, t=5):
     bs = list(range(3, max_b + 1))
@@ -16,7 +18,9 @@ def sampling_strategy(sampling_function, max_b, n, sample_save_dir, t=5):
         "all_bs": bs,
         "t": t
     }
-    return SubsampledSignal(func=sampling_function, n=n, q=2, query_args=query_args, folder=sample_save_dir)
+    signal = SubsampledSignal(func=sampling_function, n=n, q=2, query_args=query_args, folder=sample_save_dir)
+    num_samples = [get_num_samples(signal, b) for b in bs]
+    return signal, num_samples
 
 
 def support_recovery(type, signal, b, t=5):

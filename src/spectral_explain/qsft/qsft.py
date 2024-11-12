@@ -1,5 +1,4 @@
 import time
-from turtledemo.penrose import start
 
 import numpy as np
 #from scipy.special import result
