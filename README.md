@@ -16,6 +16,8 @@ poetry install
 ```
 This command installs the package `spectral_explain` in [editable mode](https://pip.pypa.io/en/stable/topics/local-project-installs/).
 
+Major bug: https://github.com/python-poetry/poetry/issues/8623
+
 ### Running the Experiments
 
 You can run the experiments with
