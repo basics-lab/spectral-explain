@@ -10,6 +10,8 @@ import time
 import os
 from spectral_explain.utils import estimate_r2
 import shutil
+import cProfile
+import pstats
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -70,7 +72,7 @@ def run_and_evaluate_method(method, signal, b, saved_samples_test):
         return end_time - start_time, estimate_r2(reconstruction, saved_samples_test)
 
 
-if __name__ == "__main__":
+def main():
     # choose TASK from parkinsons, cancer, sentiment,
     # sentiment_mini, similarity, similarity_mini,
     # comprehension, comprehension_mini, clinical
@@ -78,8 +80,11 @@ if __name__ == "__main__":
     DEVICE = 'cpu'
     NUM_EXPLAIN = 3
 
-    METHODS = ['linear_first', 'lasso_first',
-               'amp_first', 'neural_network', 'qsft_hard', 'qsft_soft']
+    #METHODS = ['linear_first', 'lasso_first',
+    #           'amp_first', 'qsft_hard', 'qsft_soft']
+
+    METHODS = ['qsft_hard']
+
     MAX_B = 8
     count_b = MAX_B - 2
 
@@ -121,3 +126,13 @@ if __name__ == "__main__":
 
     with open(f'{TASK}.pkl', 'wb') as handle:
         pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+
+if __name__ == "__main__":
+    profiler = cProfile.Profile()
+    profiler.enable()
+    main()
+    profiler.disable()
+    stats = pstats.Stats(profiler).sort_stats('cumtime')
+    stats.print_stats()

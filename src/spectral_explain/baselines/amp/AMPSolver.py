@@ -1,7 +1,29 @@
 import numpy as np
-from .utils import utils
-from numba import jit
+from numba import float64, int64, boolean, float32
+from numba.experimental import jitclass
+import numba
+spec = [
+    ('A', float64[:, ::1]),
+    ('A2', float64[:, ::1]),
+    ('y', float64[:]),
+    ('M', int64),
+    ('N', int64),
+    ('z', float64[:]),
+    ('V', float64[:]),
+    ('R', float64[:]),
+    ('T', float64[:]),
+    ('r', float64[:]),
+    ('chi', float64[:]),
+    ('l', float64),
+    ('d', float64)
+]
 
+@numba.jit(nopython=True)
+def update_dumping(old_x, new_x, dumping_coefficient):
+    return dumping_coefficient * new_x + (1.0 - dumping_coefficient) * old_x
+
+
+@jitclass(spec)
 class AMPSolver(object):
     """ approximate message passing solver for the Standard Linear Model (SLM) """
 
@@ -16,7 +38,6 @@ class AMPSolver(object):
         """
         self.A = A.copy()
         self.A2 = self.A * self.A  # A squared
-
         self.y = y.copy()
         self.M, self.N = A.shape
 
@@ -24,10 +45,8 @@ class AMPSolver(object):
         self.V = np.random.uniform(0.5, 1.0, self.M)
         self.R = np.random.normal(0.0, 1.0, self.N)
         self.T = np.random.uniform(0.5, 1.0, self.N)
-
         self.r = np.zeros(self.N)  # estimator
         self.chi = np.ones(self.N)  # variance
-
         self.l = regularization_strength  # regularization parameter
         self.d = dumping_coefficient  # dumping coefficient
 
@@ -45,14 +64,11 @@ class AMPSolver(object):
         convergence_flag = False
         for iteration_index in range(max_iteration):
             self.V, self.z = self.__update_V(), self.__update_z()
-
             self.R, self.T = self.__update_R(), self.__update_T()
-
             new_r, new_chi = self.__update_r(), self.__update_chi()
             old_r = self.r.copy()
-            self.r = utils.update_dumping(self.r, new_r, self.d)
-            self.chi = utils.update_dumping(self.chi, new_chi, self.d)
-
+            self.r = update_dumping(self.r, new_r, self.d)
+            self.chi = update_dumping(self.chi, new_chi, self.d)
             abs_diff = np.linalg.norm(old_r - self.r) / np.sqrt(self.N)
             if abs_diff < tolerance:
                 convergence_flag = True
@@ -90,6 +106,7 @@ class AMPSolver(object):
         """
         return self.y - self.A @ self.r + (self.V / (1.0 + self.V)) * self.z
 
+
     def __update_R(self):
         """ update R
 
@@ -115,7 +132,7 @@ class AMPSolver(object):
         Returns:
             new r
         """
-        return (self.R - self.l * self.T * np.sign(self.R)) * np.heaviside(np.abs(self.R) - self.l * self.T, 0.5)
+        return (self.R - self.l * self.T * np.sign(self.R)) * (np.abs(self.R) > self.l * self.T)
 
     def __update_chi(self):
         """ update chi
@@ -123,7 +140,7 @@ class AMPSolver(object):
         Returns:
             new chi
         """
-        return self.T * np.heaviside(np.abs(self.R) - self.l * self.T, 0.5)
+        return self.T * (np.abs(self.R) > self.l * self.T)
 
     def show_me(self):
         """ debug method """
