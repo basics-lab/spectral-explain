@@ -1,3 +1,4 @@
+import numba
 import numpy as np
 from spectral_explain.dataloader import get_dataset
 from spectral_explain.models.modelloader import get_model
@@ -13,7 +14,7 @@ import shutil
 import cProfile
 import pstats
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 
 
 def linear(signal, b, order):
@@ -80,10 +81,9 @@ def main():
     DEVICE = 'cpu'
     NUM_EXPLAIN = 3
 
-    #METHODS = ['linear_first', 'lasso_first',
-    #           'amp_first', 'qsft_hard', 'qsft_soft']
+    METHODS = ['linear_first', 'lasso_first',
+               'amp_first', 'qsft_hard', 'qsft_soft']
 
-    METHODS = ['qsft_hard']
 
     MAX_B = 8
     count_b = MAX_B - 2
@@ -132,7 +132,9 @@ def main():
 if __name__ == "__main__":
     profiler = cProfile.Profile()
     profiler.enable()
+    numba.set_num_threads(8)
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     main()
     profiler.disable()
-    stats = pstats.Stats(profiler).sort_stats('cumtime')
-    stats.print_stats()
+    stats = pstats.Stats(profiler).sort_stats('tottime')
+    stats.print_stats(50)
