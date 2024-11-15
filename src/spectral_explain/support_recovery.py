@@ -34,9 +34,12 @@ def support_recovery(type, signal, b, t=5):
                                           chase_depth=2 * t),
         "peeling_method": "multi-detect",
         "noise_sd": 0,
-        "regress": "lasso",
+        "regress": 'lasso',
         "res_energy_cutoff": 0.9,
-        "trap_exit": False,
-        "report": True
+        "trap_exit": True,
+        "verbosity": 0,
+        "report": True,
+        "peel_average": True,
     }
-    return transform(signal, **qsft_args)
+    res = transform(signal, **qsft_args)
+    return res

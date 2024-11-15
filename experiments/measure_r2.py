@@ -14,10 +14,7 @@ import shutil
 import cProfile
 import pstats
 
-
-
-
-def linear(signal, b, order):
+def linear(signal, b, order=1, **kwargs):
     assert order in [1, 2]
     if order == 1:
         return fit_regression('linear', {'locations': qary_ints_low_order(signal.n, 2, 1).T}, signal, signal.n, b)[0]
@@ -25,7 +22,7 @@ def linear(signal, b, order):
         return fit_regression('linear', {'locations': qary_ints_low_order(signal.n, 2, 2).T}, signal, signal.n, b)[0]
 
 
-def lasso(signal, b, order):
+def lasso(signal, b, order=1, **kwargs):
     assert order in [1, 2]
 
     if order == 1:
@@ -34,19 +31,19 @@ def lasso(signal, b, order):
         return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, 2).T}, signal, signal.n, b)[0]
 
 
-def amp(signal, b, order):
+def amp(signal, b, order=1, **kwargs):
     assert order in [1,2]
     return transform_via_amp(signal, b, order=order)["transform"]
 
-def qsft_hard(signal, b, order):
-    return support_recovery("hard", signal, b)["transform"]
+def qsft_hard(signal, b, t=5, **kwargs):
+    return support_recovery("hard", signal, b,t=t)["transform"]
 
 
-def qsft_soft(signal, b, order):
-    return support_recovery("soft", signal, b)["transform"]
+def qsft_soft(signal, b, t=5, **kwargs):
+    return support_recovery("soft", signal, b, t=t)["transform"]
 
 
-def run_and_evaluate_method(method, signal, b, saved_samples_test):
+def run_and_evaluate_method(method, signal, b, saved_samples_test, t=5):
     start_time = time.time()
     if "first" in method:
         order = 1
@@ -68,7 +65,7 @@ def run_and_evaluate_method(method, signal, b, saved_samples_test):
             "amp_second": amp,
             "qsft_hard": qsft_hard,
             "qsft_soft": qsft_soft,
-        }.get(method, NotImplementedError())(signal, b, order)
+        }.get(method, NotImplementedError())(signal, b, order=order, t=t)
         end_time = time.time()
         return end_time - start_time, estimate_r2(reconstruction, saved_samples_test)
 
@@ -81,9 +78,7 @@ def main():
     DEVICE = 'cpu'
     NUM_EXPLAIN = 3
 
-    METHODS = ['linear_first', 'lasso_first',
-               'amp_first', 'qsft_hard', 'qsft_soft']
-
+    METHODS = ['qsft_hard', 'qsft_soft', 'amp_first', 'lasso_first', 'linear_first', 'neural_network']
 
     MAX_B = 8
     count_b = MAX_B - 2
@@ -126,8 +121,6 @@ def main():
 
     with open(f'{TASK}.pkl', 'wb') as handle:
         pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-
 
 if __name__ == "__main__":
     profiler = cProfile.Profile()
