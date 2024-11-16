@@ -19,8 +19,8 @@ spec = [
 ]
 
 @numba.jit(nopython=True)
-def update_dumping(old_x, new_x, dumping_coefficient):
-    return dumping_coefficient * new_x + (1.0 - dumping_coefficient) * old_x
+def update_damping(old_x, new_x, damping_coefficient):
+    return damping_coefficient * new_x + (1.0 - damping_coefficient) * old_x
 
 
 @jitclass(spec)
@@ -36,17 +36,17 @@ class AMPSolver(object):
             regularization_strength: regularization parameter
             dumping_coefficient: dumping coefficient
         """
-        self.A = A.copy()
-        self.A2 = self.A * self.A  # A squared
-        self.y = y.copy()
+        self.A = np.ascontiguousarray(A)
+        self.A2 = np.ascontiguousarray(self.A * self.A)
+        self.y = np.ascontiguousarray(y)
         self.M, self.N = A.shape
 
         self.z = np.random.normal(0.0, 1.0, self.M)
         self.V = np.random.uniform(0.5, 1.0, self.M)
         self.R = np.random.normal(0.0, 1.0, self.N)
         self.T = np.random.uniform(0.5, 1.0, self.N)
-        self.r = np.zeros(self.N)  # estimator
-        self.chi = np.ones(self.N)  # variance
+        self.r = np.ascontiguousarray(np.zeros(self.N))  # estimator
+        self.chi = np.ascontiguousarray(np.ones(self.N))  # variance
         self.l = regularization_strength  # regularization parameter
         self.d = dumping_coefficient  # dumping coefficient
 
@@ -67,8 +67,8 @@ class AMPSolver(object):
             self.R, self.T = self.__update_R(), self.__update_T()
             new_r, new_chi = self.__update_r(), self.__update_chi()
             old_r = self.r.copy()
-            self.r = update_dumping(self.r, new_r, self.d)
-            self.chi = update_dumping(self.chi, new_chi, self.d)
+            self.r = update_damping(self.r, new_r, self.d)
+            self.chi = update_damping(self.chi, new_chi, self.d)
             abs_diff = np.linalg.norm(old_r - self.r) / np.sqrt(self.N)
             if abs_diff < tolerance:
                 convergence_flag = True
@@ -82,7 +82,7 @@ class AMPSolver(object):
         if convergence_flag:
             pass
         else:
-            print("does not converged.")
+            print("Did not coverge.")
             print("abs_diff=", abs_diff)
             print("estimate norm=", np.linalg.norm(self.r))
             if np.linalg.norm(self.r) != 0.0:
@@ -132,7 +132,8 @@ class AMPSolver(object):
         Returns:
             new r
         """
-        return (self.R - self.l * self.T * np.sign(self.R)) * (np.abs(self.R) > self.l * self.T)
+        lT = self.l * self.T
+        return (self.R - lT * np.sign(self.R)) * (np.abs(self.R) > lT)
 
     def __update_chi(self):
         """ update chi
@@ -141,7 +142,3 @@ class AMPSolver(object):
             new chi
         """
         return self.T * (np.abs(self.R) > self.l * self.T)
-
-    def show_me(self):
-        """ debug method """
-        pass
