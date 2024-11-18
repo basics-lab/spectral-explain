@@ -24,15 +24,13 @@ def vec_to_index(vec):
 def eval_function(x, list_of_interactions):
     return sum(v*prod((-1) ** x[i] for i in y) for y, v in list_of_interactions)
 
-def compute_best_subtraction(transform, method):
-
+def compute_best_subtraction(transform, method, num_to_subtract=10):
     n = 0
     for elem in transform.keys():
         n = len(elem)
         break
     if n == 0:
-        return 0
-    num_to_subtract = 10
+        return []
     if method == 'greedy': # Brute force
         list_of_interactions = []
         for interaction, val in transform.items():
@@ -55,16 +53,20 @@ def compute_best_subtraction(transform, method):
                 break
             mask[best] = 0
             num_to_subtract -= 1
-        breakpoint()
+        return np.array(mask)
+    else:
+        raise NotImplementedError()
 
 
-def subtraction_test(reconstruction, saved_samples_test):
-    sub = compute_best_subtraction(reconstruction, 'greedy')
-    query_indices_test, samples_test = saved_samples_test
-    return np.mean(np.abs(reconstruction - samples_test))
+def subtraction_test(reconstruction, sampling_function):
+    sub_mask = compute_best_subtraction(reconstruction, 'greedy')
+    no_mask = np.array([1] * len(sub_mask))
+    f1 = sampling_function(no_mask)[0]
+    f_mask = sampling_function(sub_mask)[0]
+    return abs(f1 - f_mask) / abs(f1)
 
 
-def run_and_evaluate_method(method, signal, b, saved_samples_test, t=5):
+def run_and_evaluate_method(method, signal, b, sampling_function, t=5):
     start_time = time.time()
     if "first" in method:
         order = 1
@@ -72,23 +74,18 @@ def run_and_evaluate_method(method, signal, b, saved_samples_test, t=5):
         order = 2
     else:
         order = None
-    if method == 'neural_network':
-        nn = neural_network.NeuralNetwork(signal, b)
-        end_time = time.time()
-        return end_time - start_time, nn.evaluate(saved_samples_test)
-    else:
-        reconstruction = {
-            "linear_first": linear,
-            "linear_second": linear,
-            "lasso_first": lasso,
-            "lasso_second": lasso,
-            "amp_first": amp,
-            "amp_second": amp,
-            "qsft_hard": qsft_hard,
-            "qsft_soft": qsft_soft,
+    reconstruction = {
+        "linear_first": linear,
+        "linear_second": linear,
+        "lasso_first": lasso,
+        "lasso_second": lasso,
+        "amp_first": amp,
+        "amp_second": amp,
+        "qsft_hard": qsft_hard,
+        "qsft_soft": qsft_soft,
         }.get(method, NotImplementedError())(signal, b, order=order, t=t)
-        end_time = time.time()
-        return end_time - start_time, subtraction_test(reconstruction, saved_samples_test)
+    end_time = time.time()
+    return end_time - start_time, subtraction_test(reconstruction, sampling_function)
 
 def main():
     # choose TASK from parkinsons, cancer, sentiment,
@@ -97,12 +94,9 @@ def main():
     TASK = 'parkinsons'
     DEVICE = 'cpu'
     NUM_EXPLAIN = 3
-
-    METHODS = ['qsft_hard', 'qsft_soft', 'amp_first', 'lasso_first', 'linear_first', 'neural_network']
-
+    METHODS = ['qsft_hard', 'qsft_soft', 'amp_first', 'lasso_first', 'linear_first']
     MAX_B = 8
     count_b = MAX_B - 2
-
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
 
     results = {
@@ -116,9 +110,6 @@ def main():
         n = model.set_explicand(explicand)
         sampling_function = lambda X: model.inference(X)
 
-        query_indices_test = np.random.choice(2, size=(10000, n))
-        saved_samples_test = query_indices_test, sampling_function(query_indices_test)
-
         unix_time_seconds = str(int(time.time()))
         if not os.path.exists('samples/'):
             os.makedirs('samples/')
@@ -128,13 +119,13 @@ def main():
         signal, num_samples = sampling_strategy(sampling_function, MAX_B, n, save_dir)
         results["samples"][i, :] = num_samples
 
-        for b in range(6, MAX_B+1):
+        for b in range(3, MAX_B+1):
             print(f"b = {b}")
             for method in METHODS:
-                time_taken, test_r2 = run_and_evaluate_method(method, signal, b, saved_samples_test)
+                time_taken, test_r2 = run_and_evaluate_method(method, signal, b, sampling_function)
                 results["methods"][method]["time"][i, b-3] = time_taken
                 results["methods"][method]["test_r2"][i, b-3] = test_r2
-                print(f"{method}: {np.round(test_r2, 3)} test r2 in {np.round(time_taken, 3)} seconds")
+                print(f"{method}: {np.round(test_r2, 3)} test difference in {np.round(time_taken, 3)} seconds")
             print()
 
         shutil.rmtree(save_dir)
