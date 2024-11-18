@@ -1,16 +1,68 @@
 import numba
 import numpy as np
+from pyarrow import list_
+
+from spectral_explain.dataloader import get_dataset
+from spectral_explain.models.modelloader import get_model
+from spectral_explain.support_recovery import sampling_strategy, support_recovery
+from spectral_explain.qsft.qsft import fit_regression, transform_via_amp
+from spectral_explain.baselines import neural_network
+from experiment_utils import linear, lasso, amp, qsft_hard, qsft_soft
+from spectral_explain.qsft.utils import qary_ints_low_order
 import pickle
 import time
 import os
+from math import prod
+from spectral_explain.utils import estimate_r2
 import shutil
 import cProfile
 import pstats
-from spectral_explain.models.modelloader import get_model
-from spectral_explain.support_recovery import sampling_strategy
-from spectral_explain.baselines import neural_network
-from spectral_explain.utils import estimate_r2
-from experiment_utils import linear, lasso, amp, qsft_hard, qsft_soft
+
+def vec_to_index(vec):
+    return np.nonzero(vec)[0]
+
+def eval_function(x, list_of_interactions):
+    return sum(v*prod((-1) ** x[i] for i in y) for y, v in list_of_interactions)
+
+def compute_best_subtraction(transform, method):
+
+    n = 0
+    for elem in transform.keys():
+        n = len(elem)
+        break
+    if n == 0:
+        return 0
+    num_to_subtract = 10
+    if method == 'greedy': # Brute force
+        list_of_interactions = []
+        for interaction, val in transform.items():
+            list_of_interactions.append((vec_to_index(interaction), val))
+        list_of_interactions.sort(key=lambda x: len(x[0]) + 1e-9*abs(x[1]), reverse=True) # DANGEROUS!
+        direction = (eval_function([1] * n, list_of_interactions) > 0)
+        mask = [1] * n
+        while num_to_subtract > 0:
+            best = None
+            best_val = eval_function(mask, list_of_interactions)
+            for i in range(n):
+                if mask[i] == 1:
+                    mask[i] = 0
+                    val = eval_function(mask, list_of_interactions)
+                    if (val > best_val) != direction:
+                        best = i
+                        best_val = val
+                    mask[i] = 1
+            if best is None:
+                break
+            mask[best] = 0
+            num_to_subtract -= 1
+        breakpoint()
+
+
+def subtraction_test(reconstruction, saved_samples_test):
+    sub = compute_best_subtraction(reconstruction, 'greedy')
+    query_indices_test, samples_test = saved_samples_test
+    return np.mean(np.abs(reconstruction - samples_test))
+
 
 def run_and_evaluate_method(method, signal, b, saved_samples_test, t=5):
     start_time = time.time()
@@ -36,8 +88,7 @@ def run_and_evaluate_method(method, signal, b, saved_samples_test, t=5):
             "qsft_soft": qsft_soft,
         }.get(method, NotImplementedError())(signal, b, order=order, t=t)
         end_time = time.time()
-        return end_time - start_time, estimate_r2(reconstruction, saved_samples_test)
-
+        return end_time - start_time, subtraction_test(reconstruction, saved_samples_test)
 
 def main():
     # choose TASK from parkinsons, cancer, sentiment,
@@ -77,7 +128,7 @@ def main():
         signal, num_samples = sampling_strategy(sampling_function, MAX_B, n, save_dir)
         results["samples"][i, :] = num_samples
 
-        for b in range(3, MAX_B+1):
+        for b in range(6, MAX_B+1):
             print(f"b = {b}")
             for method in METHODS:
                 time_taken, test_r2 = run_and_evaluate_method(method, signal, b, saved_samples_test)
@@ -90,7 +141,6 @@ def main():
 
     with open(f'{TASK}.pkl', 'wb') as handle:
         pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
 
 if __name__ == "__main__":
     profiler = cProfile.Profile()
