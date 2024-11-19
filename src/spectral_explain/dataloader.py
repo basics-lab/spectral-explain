@@ -146,6 +146,35 @@ class Reviews(TextDataset):
                 cursor += loc + len(w)
             self.documents.append({'original': document, 'input': filtered_sentence, 'locations': locations})
 
+class Stanford(TextDataset):
+    """First 100 reviews of length 20 from Stanford Sentiment Analysis Dataset
+    https://nlp.stanford.edu/sentiment/
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.name = 'Stanford'
+
+    def load(self, mini):
+        import os
+        os.getcwd()
+        self.documents = []
+        filename = 'data/stanford-reviews.txt'
+        with open(filename) as file:
+            dataset = [line.rstrip() for line in file]
+
+        for document in tqdm(dataset):
+            document = ' '.join(document.split('|'))
+            word_tokens = word_tokenize(document)
+            filtered_sentence = [w for w in word_tokens]
+            locations = []
+            substring = document
+            cursor = 0
+            for w in filtered_sentence:
+                loc = substring[cursor:].find(w)
+                locations.append((cursor + loc, cursor + loc + len(w)))
+                cursor += loc + len(w)
+            self.documents.append({'original': document, 'input': filtered_sentence, 'locations': locations})
 
 class STS16(TextDataset):
     """First 100 test rows of STS16 sentence similarity dataset
@@ -284,5 +313,6 @@ def get_dataset(dataset, num_explain):
         "sentiment_mini": Reviews,
         "similarity_mini": STS16,
         "comprehension_mini": Race,
-        "clinical": MedQA
+        "clinical": MedQA,
+        "stanford": Stanford
     }.get(dataset, NotImplementedError())().retrieve(num_explain, mini)
