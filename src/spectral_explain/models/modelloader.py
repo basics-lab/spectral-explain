@@ -46,7 +46,7 @@ class Reviews:
         pos_logits = np.zeros(len(X))
         outputs = self.trained_model.predict(input_strings)
         for i in range(len(X)):
-            if outputs[i][0]['label'] == 'positive':
+            if outputs[i][0]['label'] == 'POSITIVE':
                 pos_logits[i] = outputs[i][0]['score']
             else:
                 pos_logits[i] = outputs[i][1]['score']
@@ -300,7 +300,8 @@ def get_model(task, num_explain=10, device=None):
         "sentiment_mini": Reviews,
         "similarity_mini": STS16,
         "comprehension_mini": Race,
-        "clinical": MedQA
+        "clinical": MedQA,
+        "stanford": Reviews
     }.get(task, NotImplementedError())(task, num_explain, device)
 
     return model.explicands, model
