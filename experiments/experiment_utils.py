@@ -4,6 +4,7 @@ import numpy as np
 import shapiq
 import lime.lime_tabular
 import warnings
+import pyrootutils
 
 warnings.filterwarnings("ignore")
 
@@ -141,3 +142,14 @@ class AlternativeSampler:
 
     def uniform_queries(self, num_samples):
         return np.random.choice(2, size=(num_samples, self.n))
+
+
+def setup_root():
+    root = pyrootutils.setup_root(
+        search_from=__file__,
+        indicator=[".git", "pyproject.toml"],
+        pythonpath=True,
+        cwd=True,
+        dotenv=True,
+    )
+    print(f"Current working directory is set to project root: {root}.")

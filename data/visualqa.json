@@ -1,0 +1,9 @@
+[
+    {
+        "image_url": "https://img.freepik.com/premium-photo/small-dog-is-running-after-basketball-midair-dog-is-focus-background-is-blurry_14117-261805.jpg", 
+        "question": "What is shown in this image?", 
+        "target_output": "The image shows a dog playing with a basketball.",
+        "nx": 8,
+        "ny": 6
+    }
+]

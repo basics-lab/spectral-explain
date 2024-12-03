@@ -4,6 +4,10 @@ import openml
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
+from PIL import Image
+import requests
+import json
+from itertools import islice
 
 def scaler_classification(X_train, X_test, y_train, y_test):
     s = StandardScaler()
@@ -167,6 +171,19 @@ class Puzzles(TextDataset):
                 cursor += loc + len(w)
             self.documents.append({'original': context, 'input': split_context, 'locations': locations, 'question': question})
 
+class VisualQA(TextDataset):
+    """Visual question answering dataset
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.name = 'VisualQA'
+
+    def load(self):
+        with open('data/visualqa.json', 'r') as file:
+            self.documents = json.load(file)
+            for doc in self.documents:
+                doc["image"] = Image.open(requests.get(doc["image_url"], stream=True).raw).convert('RGB')     
 
 def get_dataset(dataset, num_explain):
     """
@@ -183,5 +200,6 @@ def get_dataset(dataset, num_explain):
         "parkinsons": Parkinsons,
         "cancer": Cancer,
         "sentiment": Sentiment,
-        "puzzles": Puzzles
+        "puzzles": Puzzles,
+        "vqa": VisualQA,
     }.get(dataset, NotImplementedError())().retrieve(num_explain)

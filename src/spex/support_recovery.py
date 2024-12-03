@@ -7,9 +7,9 @@ def get_num_samples(signal, b):
     # Calculates the number of samples taken for the given sparsity parameter b
     return len(signal.all_samples) * len(signal.all_samples[0]) * (2 ** b)
 
-def sampling_strategy(sampling_function, max_b, n, sample_save_dir, t=5):
+def sampling_strategy(sampling_function, min_b, max_b, n, sample_save_dir, t=5):
     # takes samples for SPEX using BCH code defined in sparse_transform.qsft
-    bs = list(range(3, max_b + 1))
+    bs = list(range(min_b, max_b + 1))
     query_args = {
         "query_method": "complex",
         "num_subsample": 3,
@@ -22,7 +22,7 @@ def sampling_strategy(sampling_function, max_b, n, sample_save_dir, t=5):
         "t": t
     }
     signal = SubsampledSignal(func=sampling_function, n=n, q=2, query_args=query_args, folder=sample_save_dir)
-    num_samples = [get_num_samples(signal, b) for b in bs]
+    num_samples = {b: get_num_samples(signal, b) for b in bs}
     return signal, num_samples
 
 

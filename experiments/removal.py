@@ -251,6 +251,7 @@ def removal(explicands, model, methods, bs, max_order, subtract_dist):
 
 
 if __name__ == "__main__":
+    setup_root()
     numba.set_num_threads(8)
     TASK = 'cancer'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, vision
     DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda

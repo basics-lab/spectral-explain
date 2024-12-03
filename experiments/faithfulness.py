@@ -86,9 +86,9 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
 
         # Sample explanation function for choice of max b
         sampling_time_start = time.time()
-        spex_signal, num_samples = sampling_strategy(sampling_function, max(bs), n, save_dir)
+        spex_signal, num_samples = sampling_strategy(sampling_function, min(bs), max(bs), n, save_dir)
         sampling_time = time.time() - sampling_time_start
-        results["samples"][i, :] = [num_samples[b-3] for b in bs]
+        results["samples"][i, :] = [num_samples[b] for b in bs]
 
         # Draws an equal number of uniform samples
         active_sampler_dict = {"spex": spex_signal}
@@ -125,8 +125,9 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
 
 
 if __name__ == "__main__":
+    setup_root()
     numba.set_num_threads(8)
-    TASK = 'parkinsons'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, vision
+    TASK = 'vqa'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, vision
     DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
     NUM_EXPLAIN = 10  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods
@@ -141,7 +142,7 @@ if __name__ == "__main__":
                'spex_hard', 'spex_soft']
 
     if DEVICE == 'cuda':
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
 
