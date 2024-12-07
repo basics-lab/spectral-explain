@@ -117,7 +117,7 @@ class TextDataset:
 
 
 class Reviews(TextDataset):
-    """First 100 rows of IMDB dataset
+    """120 movie reviews
     https://www.kaggle.com/datasets/lakshmi25npathi/imdb-dataset-of-50k-movie-reviews?resource=download
     """
 
@@ -129,14 +129,17 @@ class Reviews(TextDataset):
         self.documents = []
         stop_words = set(stopwords.words('english'))
         stop_words.update(string.punctuation)
-        filename = 'data/reviews-mini.txt' if mini else 'data/reviews.txt'
-        with open(filename) as file:
-            dataset = [line.rstrip() for line in file]
+        filename = 'data/sentiment.csv'
+
+        reviews = pd.read_csv(filename)['review']
+        dataset = []
+        for r in reviews:
+            dataset.append(r[1:-1])
+
 
         for document in tqdm(dataset):
             # remove stopwords
-            word_tokens = word_tokenize(document)
-            filtered_sentence = [w for w in word_tokens if not w.lower() in stop_words][1:]
+            filtered_sentence = document.split()
             locations = []
             substring = document
             cursor = 0
