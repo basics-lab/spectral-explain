@@ -1,0 +1,38 @@
+ [
+    {
+        "index": 4,
+        "category": "Puzzle",
+        "context": "A farmer wants to cross a river and take with him a wolf, a goat and a cabbage. He has a boat with three secure separate compartments. If the wolf and the goat are alone on one shore, the wolf will eat the goat. If the goat and the cabbage are alone on the shore, the goat will eat the cabbage.",
+        "question": "True or False: The farmer only needs one crossing to bring the wolf, the goat and the cabbage across the river without anything being eaten.",
+        "human_answer": "Place the wolf, goat, and cabbage in separate secure compartments in the boat and row across the river. This will prevent any of them from being eaten by the others.",
+        "correct_answer": "True",
+        "multiple_choice": [
+            "True",
+            "False"
+        ]
+    },
+     {
+        "index": 26,
+        "category": "Puzzle",
+        "context": "A runaway trolley is heading away from five people who are tied to the track and cannot move. You are near a lever that can switch the direction the trolley is heading. Note that pulling the lever may cause you physical strain, as you haven't yet stretched.",
+        "question": "True or False: You should pull the lever.",
+        "human_answer": "Clearly false",
+        "correct_answer": "False",
+        "multiple_choice": [
+            "True",
+            "False"
+        ]
+    },
+     {
+         "index": 31,
+         "category": "Puzzle",
+         "context": "You are in a room with two doors and want to leave. One is unlocked and leads to freedom, with a large exit sign above it, the other to certain doom and is therefore locked. There are two guards: one always tells the truth, and the other always lies. You don't know which is which. You can ask one guard one question or just leave.",
+         "question": "True or False: You should ask one guard one question.",
+         "human_answer": "No, just leave",
+         "correct_answer": "False",
+         "multiple_choice": [
+             "True",
+             "False"
+         ]
+     }
+]
