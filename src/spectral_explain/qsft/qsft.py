@@ -1,7 +1,7 @@
 import time
 
 import numpy as np
-#from scipy.special import result
+# from scipy.special import result
 
 from .reconstruct import singleton_detection
 from .input_signal_subsampled import SubsampledSignal
@@ -13,9 +13,11 @@ from functools import partial
 import random
 import copy
 from spectral_explain.baselines.amp.AMPSolver import AMPSolver
+from spectral_explain.utils import mobius_to_fourier, fourier_to_mobius
 from celer import LassoCV
 
 logger = logging.getLogger(__name__)
+
 
 def transform(signal: SubsampledSignal,
               reconstruct_method_source,
@@ -97,8 +99,8 @@ def transform(signal: SubsampledSignal,
             nonlocal indicies
             active = [i for i in range(len(k_vec)) if k_vec[i] == 1]
             signs = 1 - 2 * (np.sum(indicies[:, active], 1) % 2)
-            inner_prod = sum(signs*samples)
-            return inner_prod/len(samples)
+            inner_prod = sum(signs * samples)
+            return inner_prod / len(samples)
 
     # Peeling Parameters
     peeling_max = q ** n
@@ -180,7 +182,8 @@ def transform(signal: SubsampledSignal,
                     is_singleton, rho, residual = valid_k_partial(k)
                     if verbosity >= 5:
                         logger.info(f"({i}, {j}), res: {np.linalg.norm(residual) ** 2}, thresh: {cutoff * len(col)}")
-                        logger.info(f"frac. energy left: {(np.linalg.norm(residual) ** 2)/(np.linalg.norm(col) ** 2)}")
+                        logger.info(
+                            f"frac. energy left: {(np.linalg.norm(residual) ** 2) / (np.linalg.norm(col) ** 2)}")
                     if (not is_singleton) or (probabalistic_peel and (random.random() < 0.2)):
                         multitons.append((i, j))
                         to_check[i][j] = is_singleton
@@ -224,7 +227,7 @@ def transform(signal: SubsampledSignal,
         elif len(singletons) == 0:
             cont_peeling = False
         if trap_exit:
-            if iter_step >= 15 and peeled_at_iter[iter_step-1] == peeled_at_iter[iter_step - 15]:
+            if iter_step >= 15 and peeled_at_iter[iter_step - 1] == peeled_at_iter[iter_step - 15]:
                 cont_peeling = False
         # balls to peel
         balls_to_peel = set()
@@ -235,7 +238,7 @@ def transform(signal: SubsampledSignal,
             ball = tuple(k)  # Must be a hashable type
             if peel_average:
                 if ball in peeled_counter:
-                    rho = (ball_values[ball] * peeled_counter[ball] + rho)/(peeled_counter[ball] + 1)
+                    rho = (ball_values[ball] * peeled_counter[ball] + rho) / (peeled_counter[ball] + 1)
                     peeled_counter[ball] += 1
                 else:
                     peeled_counter[ball] = 1
@@ -312,7 +315,8 @@ def transform(signal: SubsampledSignal,
         regress_start = time.time()
         if regress is not None:
             if regress in ["freq_domain", "freq_domain_lasso"]:
-                new_transform_dict, _ = freq_domain_regression(result, signal, n, b, initial_Us, Ms, Ds, Us, lasso=regress == "freq_domain_lasso")
+                new_transform_dict, _ = freq_domain_regression(result, signal, n, b, initial_Us, Ms, Ds, Us,
+                                                               lasso=regress == "freq_domain_lasso")
             else:
                 new_transform_dict, _ = fit_regression(regress, result, signal, n, b)
             result['transform'] = new_transform_dict
@@ -352,7 +356,7 @@ def valid_k(k, col, j_qary, M, D, q, res_energy_cutoff, cutoff, peeling_method):
     return (peel_condition and bin_matching), rho, residual
 
 
-def fit_regression(type, results, signal, n, b):
+def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=None, values=None):
     """
     Fits a regression model to the given signal data.
 
@@ -366,43 +370,56 @@ def fit_regression(type, results, signal, n, b):
     Returns:
     tuple: A tuple containing the regression coefficients and the support locations.
     """
-    assert type in ['linear', 'lasso', 'ridge']
-    coordinates = []
-    values = []
-    for m in range(len(signal.all_samples)):
-        for d in range(len(signal.all_samples[0])):
-            for z in range(2 ** b):
-                coordinates.append(signal.all_queries[m][d][z])
-                values.append(np.real(signal.all_samples[m][d][z]))
+    assert type in ['linear', 'lasso', 'shapley']
+    if coordinates is None and values is None:
+        coordinates = []
+        values = []
+        for m in range(len(signal.all_samples)):
+            for d in range(len(signal.all_samples[0])):
+                for z in range(2 ** b):
+                    coordinates.append(signal.all_queries[m][d][z])
+                    values.append(np.real(signal.all_samples[m][d][z]))
 
-    coordinates = np.array(coordinates)
-    values = np.array(values)
+        coordinates = np.array(coordinates)
+        values = np.array(values)
 
     if len(results['locations']) == 0:
-        support = np.zeros((1,n))
+        support = np.zeros((1, n))
     else:
         support = results['locations']
 
     # add null coefficient if not contained
     support = np.vstack([support, np.zeros(n)])
     support = np.unique(support, axis=0)
+    if fourier_basis:
+        X = np.real(np.exp(coordinates @ (1j * np.pi * support.T)))
+    else:
+        X = ((coordinates @ support.T) > 0.5).astype(int)
+        X[:, 0] = 1
 
-    X = np.real(np.exp(coordinates @ (1j * np.pi * support.T)))
     if type == 'linear':
         reg = LinearRegression(fit_intercept=False).fit(X, values)
         coefs = reg.coef_
     elif type == 'lasso':
-        clf = LassoCV(fit_intercept=False)
-        clf.fit(X, values)
-        coefs = clf.coef_
-
-
+        reg = LassoCV(fit_intercept=False, n_alphas=10).fit(X, values)
+        coefs = reg.coef_
+    elif type == 'shapley':
+        # the first two sampled values correspond to the all 0's and all 1's queries. These should hold with equality.
+        reg = LassoCV(fit_intercept=False, n_alphas=10).fit(X, values,
+                                                            sample_weight=[1000000 if i < 2 else 1 for i in
+                                                                           range(len(values))])
+        coefs = reg.coef_
 
     regression_coefs = {}
     for coef in range(support.shape[0]):
         regression_coefs[tuple(support[coef, :].astype(int))] = coefs[coef]
 
+    if not fourier_basis:
+        # solved in Mobius basis ({0,1}), transforming back to Fourier
+        regression_coefs = mobius_to_fourier(regression_coefs)
+
     return regression_coefs, support
+
 
 def freq_domain_regression(type, results, signal, n, b, Us, Ms, Ds, res_Us):
     """
@@ -429,7 +446,7 @@ def freq_domain_regression(type, results, signal, n, b, Us, Ms, Ds, res_Us):
     """
     # Preprocess data
     if len(results['locations']) == 0:
-        support = np.zeros((1,n))
+        support = np.zeros((1, n))
     else:
         support = results['locations']
 
@@ -486,6 +503,7 @@ def freq_domain_regression(type, results, signal, n, b, Us, Ms, Ds, res_Us):
         regression_coefs[tuple(support[coef, :].astype(int))] = reg.coef_[coef]
     return regression_coefs, support
 
+
 def transform_via_omp(signal, b, order):
     """
     Transforms the given signal using Orthogonal Matching Pursuit (OMP).
@@ -520,6 +538,7 @@ def transform_via_omp(signal, b, order):
     result['n_samples'] = len(values)
     result['locations'] = result['transform'].keys()
     return result
+
 
 def transform_via_amp(signal, b, order):
     """
