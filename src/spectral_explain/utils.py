@@ -57,7 +57,23 @@ def fourier_to_mobius(qsft_results):
                     unscaled_mobius_dict[subset] = real_coef
 
         # multiply each entry by (-2)^(cardinality)
-        return {loc: val * np.power(-2.0, np.sum(loc)) for loc, val in unscaled_mobius_dict.items()}
+        return {loc: val * np.power(-2.0, np.sum(loc)) for loc, val in unscaled_mobius_dict.items() if np.abs(val) > 1e-12}
+
+def mobius_to_fourier(qsft_results):
+    if len(qsft_results) == 0:
+        return {}
+    else:
+        unscaled_fourier_dict = {}
+        for loc, coef in qsft_results.items():
+            real_coef = np.real(coef) / (2 ** sum(loc))
+            for subset in powerset(loc):
+                if subset in unscaled_fourier_dict:
+                    unscaled_fourier_dict[subset] += real_coef
+                else:
+                    unscaled_fourier_dict[subset] = real_coef
+
+        # multiply each entry by (-1)^(cardinality)
+        return {loc: val * np.power(-1.0, np.sum(loc)) for loc, val in unscaled_fourier_dict.items() if np.abs(val) > 1e-12}
 
 def fourier_to_banzhaf(qsft_results, n):
     if len(qsft_results) == 0:
