@@ -1,0 +1,19 @@
+review,source,n,sentiment
+"""A rating of ""1"" does not begin to express how dull, depressing and relentlessly bad this movie is.""",IMDB,18,negative
+"""Hated it with all my being. Worst movie ever. Mentally- scarred. Help me. It was that bad.TRUST ME!!!""",IMDB,18,negative
+"""For pure gothic vampire cheese nothing can compare to the Subspecies films. I highly recommend each and every one of them.""",IMDB,21,positive
+"""This is a good film. This is very funny. Yet after this film there were no good Ernest films!""",IMDB,19,positive
+"""A touching movie. It is full of emotions and wonderful acting. I could have sat through it a second time.""",IMDB,20,positive
+"""The characters are unlikeable and the script is awful. It's a waste of the talents of Deneuve and Auteuil.""",IMDB,19,negative
+"""Ten minutes of people spewing gallons of pink vomit. Recurring scenes of enormous piles of dog excrement - need one say more???""",IMDB,22,negative
+"""Brilliant. Ranks along with Citizen Kane, The Matrix and Godfathers. Must see, at least for basset in her early days. Watch it.""",IMDB,22,positive
+"""I don't know why I like this movie so well, but I never get tired of watching it.""",IMDB,18,positive
+"""If you like Pauly Shore, you'll love Son in Law. If you hate Pauly Shore, then, well...I liked it!""",IMDB,19,positive
+"""This movie will always be a Broadway and Movie classic, as long as there are still people who sing, dance, and act.""",IMDB,22,positive
+"""Without a doubt, one of Tobe Hoppor's best! Epic storytellng, great special effects, and The Spacegirl (vamp me baby!).""",IMDB,19,positive
+"""Unwatchable. You can't even make it past the first three minutes. And this is coming from a huge Adam Sandler fan!!1""",IMDB,21,negative
+"""One of the funniest movies made in recent years. Good characterization, plot and exceptional chemistry make this one a classic""",IMDB,20,positive
+"""Absolutely fantastic! Whatever I say wouldn't do this underrated movie the justice it deserves. Watch it now! FANTASTIC!""",IMDB,18,positive
+"""Widow hires a psychopath as a handyman. Sloppy film noir thriller which doesn't make much of its tension promising set-up. (3/10)""",IMDB,21,negative
+"""Obviously written for the stage. Lightweight but worthwhile. How can you go wrong with Ralph Richardson, Olivier and Merle Oberon.""",IMDB,20,positive
+"""An unfunny, unworthy picture which is an undeserving end to Peter Sellers' career. It is a pity this movie was ever made.""",IMDB,22,negative
