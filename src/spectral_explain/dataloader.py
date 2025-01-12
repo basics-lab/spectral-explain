@@ -3,8 +3,10 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import openml
 import numpy as np
+from datasets import load_dataset
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
+from nltk.tokenize import sent_tokenize, word_tokenize
 
 def scaler_classification(X_train, X_test, y_train, y_test):
     s = StandardScaler()
@@ -94,12 +96,97 @@ class TextDataset:
     def __init__(self):
         self.documents = None
 
-    def retrieve(self, num_explain, mini):
-        self.load(mini)
+    def retrieve(self, num_explain, mini, seed):
+        self.load(mini, seed)
         if num_explain > len(self.documents):
             print(f'num_explain > test set size. Explaining all {len(self.documents)} test samples instead.')
             num_explain = len(self.documents)
         return self.documents[:num_explain]
+    
+
+# class HotpotQA(TextDataset):
+#     """HotpotQA dataset"""
+
+#     def __init__(self):
+#         super().__init__()
+#         self.name = 'hotpotqa'
+#         self.task = 'distractor'
+#         self.split = 'validation'
+
+#     def load(self, mini):
+#         self.documents  = None
+#         dataset = load_dataset('hotpot_qa', self.task, self.split)
+
+#         for sample in dataset:
+
+
+# class HotpotQA(TextDataset):
+#     """HotpotQA dataset"""
+
+#     def __init__(self):
+#         super().__init__()
+#         self.name = 'hotpotqa'
+#         self.task = 'distractor'
+#         self.split = 'validation'
+    
+
+# class CNN(TextDataset):
+#     """CNN dataset"""
+
+#     def __init__(self):
+#         super().__init__()
+#         self.name = 'cnn'
+#         self.task = 'distractor'
+#         self.split = 'validation'
+    
+
+class HotpotQA(TextDataset):
+    """HotpotQA dataset"""
+
+    def __init__(self):
+        super().__init__()
+        self.name = 'hotpotqa'
+        self.task = 'distractor'
+        self.split = 'validation'
+
+    def load(self, mini, seed):
+        self.documents = None
+        dataset = load_dataset('hotpot_qa', self.task, self.split)
+        dataset = dataset.shuffle(seed = seed)
+        self.documents = dataset
+
+class Drop(TextDataset):
+    """Drop dataset"""
+
+    def __init__(self):
+        super().__init__()
+        self.name = 'DROP_BENCHMARK'
+        self.task = None
+        self.split = 'validation'
+       
+
+    def load(self,mini, seed):
+        self.documents = None
+        dataset = load_dataset('drop', name = self.task, split = self.split)
+        dataset = dataset.shuffle(seed = seed)
+        documents = []
+        
+        for sample in dataset:
+            context_words = word_tokenize(sample['passage'])
+            original = sample['passage']
+            question = f'{sample['question']}. Provide shortest answer possible, long answers are penalized heavily.'
+            answer = sample['answers_spans']
+            cursor = 0
+            substring = sample['passage']
+            locations = []
+            for w in context_words:
+                loc = substring[cursor:].find(w)
+                locations.append((cursor + loc, cursor + loc + len(w)))
+                cursor += loc + len(w)
+            documents.append({'original': original, 'input': context_words, 'locations': locations, 'question': question, 'answer': answer})
+        self.documents = documents
+
+
 
 
 class Reviews(TextDataset):
@@ -111,7 +198,7 @@ class Reviews(TextDataset):
         super().__init__()
         self.name = 'IMDBReviews'
 
-    def load(self, mini):
+    def load(self, mini, seed):
         self.documents = []
         filename = 'data/sentiment.csv'
 
@@ -133,11 +220,15 @@ class Reviews(TextDataset):
             self.documents.append({'original': document, 'input': filtered_sentence, 'locations': locations})
 
 
-def get_dataset(dataset, num_explain):
+def get_dataset(dataset, num_explain, seed = 42):
     mini = "mini" in dataset
     return {
         "parkinsons": Parkinsons,
         "cancer": Cancer,
         "sentiment": Reviews,
         "sentiment_mini": Reviews,
-    }.get(dataset, NotImplementedError())().retrieve(num_explain, mini)
+        "drop": Drop,
+    }.get(dataset, NotImplementedError())().retrieve(num_explain, mini, seed)
+
+
+
