@@ -155,7 +155,7 @@ SAMPLER_DICT = {
    "lasso": "uniform",
    "lime": "lime",
     "faith_banzhaf": "uniform",
-    "faith_shapley": "shapley"
+   # "faith_shapley": "shapley"
 }
 
 
@@ -164,14 +164,14 @@ def main():
     # sentiment_mini, similarity, similarity_mini,
     # comprehension, comprehension_mini, clinical
     # context_cite (HotpotQA, DROP)
-    TASK = 'drop'
+    TASK = 'cnn'
     DEVICE = 'auto'
     NUM_EXPLAIN = 1
     MAX_ORDER = 4
     MAX_B = 4
     SEED = 80
-    num_test_samples = 10000
-    METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_banzhaf', 'faith_shapley']
+    num_test_samples = 2000
+    METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft'] #'faith_banzhaf', 'faith_shapley']
 
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
 
@@ -212,8 +212,10 @@ def main():
 
         torch.cuda.empty_cache()
 
+
         # Sample explanation function for choice of max b
         qsft_signal, num_samples = sampling_strategy(sampling_function, MAX_B, n, save_dir)
+        print(f'finished QSFT sampling')
         results["samples"][i, :] = num_samples
 
         # Draws an equal number of uniform samples
@@ -221,6 +223,7 @@ def main():
         for sampler in tqdm(sampler_set):
             if sampler != "qsft":
                 active_sampler_dict[sampler] = BatchedAlternative_Sampler(sampler, sampling_function, qsft_signal, n)
+            print(f'finished {sampler} sampling')
         for b in range(3, MAX_B + 1):
             print(f"b = {b}")
             for method, order in ordered_methods:

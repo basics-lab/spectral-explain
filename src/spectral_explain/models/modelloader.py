@@ -20,104 +20,98 @@ class TextModel:
     def inference(self, X):
         raise NotImplementedError()
 
-class Drop:
+class QAModel:
     def __init__(self, task, num_explain, device, seed):
         super().__init__()
         self.explicands = get_dataset(task, num_explain, seed)
         self.device = device
-        self.mask_token = '[UNK]'
+        self.mask_token = '<unk>'
         quantization_config = BitsAndBytesConfig(
-        load_in_8bit=True)
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True)
+        self.model_name = self.explicands[0]['model_name']
+        self.max_new_tokens = self.explicands[0]['max_new_tokens']
+        self.batch_size = self.explicands[0]['model_batch_size']
+        #model_name = "HuggingFaceTB/SmolLM-135M"
 
-
-        self.trained_model = AutoModelForCausalLM.from_pretrained('google/gemma-2-2b', 
-                            device_map = self.device,  quantization_config=quantization_config)
-        self.tokenizer = AutoTokenizer.from_pretrained('google/gemma-2-2b')
+        self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, 
+                            device_map = self.device,  quantization_config=quantization_config,attn_implementation="flash_attention_2")
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = 'left'
         self.trained_model.eval()
-        self.batch_size = 512
+  
 
     def set_explicand(self, explicand):
         self.explicand = explicand
+        self.mask_level = explicand['mask_level']
         return len(explicand['input'])
     
+
+    def get_original_output(self):
+        input_strings = [self.explicand['original']]
+        inputs = self.tokenizer(input_strings, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
+        with torch.no_grad():
+            model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], max_new_tokens=self.max_new_tokens, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
+        token_ids = model_outputs['sequences'][:,inputs['input_ids'].shape[1]:][0].detach().cpu().numpy().tolist()
+        return token_ids # shape is original answer tokens length
+
    
+    
+    def get_sequence_log_probs(self, batch_strings, original_output_token_ids):
+        batch_sequence_log_probs = [0.0] * len(batch_strings)
+        for j in range(len(original_output_token_ids) - 1):
+            batch_prompt = []
+            for input in batch_strings:
+                if original_output_token_ids[j] == -1:
+                    prompt = f'Context: {input}\nQuestion: {self.explicand['question']}\nAnswer: '
+                else:
+                    cur_answer = self.tokenizer.decode(original_output_token_ids[1:j+1], skip_special_tokens=False,clean_up_tokenization_spaces=True)
+                    prompt = f'Context: {input}\nQuestion: {self.explicand['question']}\nAnswer: ' + cur_answer
+              
+                batch_prompt.append(prompt)
+            print(batch_prompt[0])
+            inputs = self.tokenizer(batch_prompt, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
+            with torch.no_grad():
+                model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
+            token_probs = torch.log(F.softmax(torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,:],dim = 1))[:,original_output_token_ids[j+1]].detach().cpu().numpy() # log probs of the next token batch size * vocab size  
+            batch_sequence_log_probs = [batch_sequence_log_probs[tok_pos] + token_probs[tok_pos] for tok_pos in range(len(batch_strings))]
+            del model_outputs, inputs
+
+        batch_sequence_log_probs = [batch_sequence_log_probs[i]/(len(original_output_token_ids) - 1) for i in range(len(batch_strings))]
+        return batch_sequence_log_probs
+  
     def inference(self, X):
         # X is the masking pattern
+        original_output_token_ids = self.get_original_output()
+        print(f'Original output: {self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)}')
+        original_output_token_ids = [-1] + original_output_token_ids
         input_strings = []
-        outputs = []
+        outputs = [0.0] * len(X)
        
         for index in X:
-            input = word_tokenize(copy(self.explicand['original']))
+            if self.mask_level == 'sentence':
+                input = sent_tokenize(copy(self.explicand['original']))
+            elif self.mask_level == 'word':
+                input = word_tokenize(copy(self.explicand['original']))
+            else:
+                raise ValueError(f'Invalid mask level: {self.mask_level}')
             for i,word in enumerate(input):
                 if index[i] == 0:
                     input[i] = self.mask_token
             input_strings.append(' '.join(input))
-            #input_strings.append(input.join(' '))
-            
-            # for i, location in enumerate(self.explicand['locations']):
-            #     if index[i] == 0:
-            #         input = input[:location[0]] + self.mask_token + input[location[1]:]
-            # input_strings.append(input)
         
+        
+        count = 0
         for i in tqdm(range(0, len(input_strings), self.batch_size)):
             batch = input_strings[i:i+self.batch_size]
-            batch_prompt = []
-            for input in batch:
-                prompt = f' \nContext: {input}\nQuestion: {self.explicand['question']}'
-                batch_prompt.append(prompt)
-            inputs = self.tokenizer(batch_prompt, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
-            with torch.no_grad():
-                model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], max_new_tokens=6, output_scores=True, return_dict_in_generate=True)
-            print(self.tokenizer.batch_decode(model_outputs['sequences'], skip_special_tokens=True))
-            transition_scores = self.trained_model.compute_transition_scores(model_outputs['sequences'], model_outputs['scores'], normalize_logits=True) # shape: (batch_size, generated_tokens)
-            input_length = inputs['input_ids'].shape[1] # shape: (batch_size)
-            generated_tokens = model_outputs['sequences'][:, input_length:]
-            transition_scores, generated_tokens = transition_scores.detach().cpu().numpy(), generated_tokens.detach().cpu().numpy()
-
-            
-            for j in range(len(generated_tokens)): # skip last token
-                sequence_prob = 0.0
-                generated_sequence = []
-                for tok, score in zip(generated_tokens[j], transition_scores[j]):
-                    if tok == self.tokenizer.convert_tokens_to_ids('<|eot_id|>'): 
-                        break
-                    if tok == self.tokenizer.eos_token_id: #ignore pad token (set to eos token_id)
-                        break
-                    if tok == self.tokenizer.convert_tokens_to_ids('\n'): #ignore new line token
-                        continue
-                    if tok == self.tokenizer.convert_tokens_to_ids('Answer'): #ignore answer token
-                        continue
-                    if tok == self.tokenizer.convert_tokens_to_ids(':'): #ignore answer token
-                        continue
-                    else:
-                        generated_sequence.append(self.tokenizer.decode([tok]))
-                        sequence_prob += score # add log probability of token
-                sequence_prob = np.exp(sequence_prob)
-                sequence_prob = np.log(sequence_prob/(1.0 - sequence_prob))
-                if sequence_prob >= 1e9:
-                    sequence_prob = 1e9
-                if sequence_prob <= -1e9:
-                    sequence_prob = -1e9
-                #print(self.tokenizer.decode(generated_sequence))
-                outputs.append(sequence_prob)
-            del inputs, model_outputs, transition_scores, generated_tokens
-            #torch.cuda.empty_cache()
+            sequence_log_probs = self.get_sequence_log_probs(batch, original_output_token_ids)
+            outputs[count:count+len(sequence_log_probs)] = sequence_log_probs
+            count += len(sequence_log_probs)
+        print(len(outputs))
         return outputs
-
-
-            
-
-        #     output_logits = model_outputs['scores'] # shape: (generated_tokens, batch_size, vocab_size)
-        #     for j in range(len(model_outputs.shape[0])):
-        #          outputs.append(1.0)
-        #     #outputs[i:i+self.batch_size] = get_prob_of_answer(model_outputs)
-        #     #outputs[i:i+self.batch_size] = self.trained_model.generate(**inputs, max_new_tokens=16)
-        # return outputs
-
-        
-        
 
 class Reviews:
     def __init__(self, task, num_explain, device, seed):
@@ -207,7 +201,8 @@ def get_model(task, num_explain=10, device=None, seed = 42):
         "cancer": MLPClassification,
         "sentiment": Reviews,
         "sentiment_mini": Reviews,
-        "drop": Drop,
+        "drop": QAModel,
+        "cnn": QAModel,
     }.get(task, NotImplementedError())(task, num_explain, device, seed)
 
     return model.explicands, model
