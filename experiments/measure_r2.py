@@ -97,9 +97,10 @@ def main():
     TASK = 'cancer'
     DEVICE = 'cpu'
     NUM_EXPLAIN = 500
-    MAX_ORDER = 2
-    MAX_B = 9
-    METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_banzhaf', 'faith_shapley']
+    MAX_ORDER = 4
+    MAX_B = 8
+    ALL_Bs = False
+    METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
 
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
 
@@ -110,7 +111,8 @@ def main():
             METHODS.remove(regression)
     ordered_methods += [(method, 0) for method in METHODS]
 
-    count_b = MAX_B - 2
+    count_b = MAX_B - 2 if ALL_Bs else 1
+
 
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
 
@@ -137,7 +139,7 @@ def main():
 
         # Sample explanation function for choice of max b
         qsft_signal, num_samples = sampling_strategy(sampling_function, MAX_B, n, save_dir)
-        results["samples"][i, :] = num_samples
+        results["samples"][i, :] = num_samples if ALL_Bs else num_samples[-1]
 
         # Draws an equal number of uniform samples
         active_sampler_dict = {"qsft": qsft_signal}
@@ -145,18 +147,19 @@ def main():
             if sampler != "qsft":
                 active_sampler_dict[sampler] = Alternative_Sampler(sampler, sampling_function, qsft_signal, n)
 
-        for b in range(3, MAX_B + 1):
+        for b in range(3 if ALL_Bs else MAX_B, MAX_B + 1):
             print(f"b = {b}")
+            j = b - 3 if ALL_Bs else 0
             for method, order in ordered_methods:
                 method_str = f'{method}_{order}'
                 samples = active_sampler_dict[SAMPLER_DICT[method]]
                 if (order >= 2 and n >= 128) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16):
-                    results["methods"][method_str]["time"][i, b - 3] = np.nan
-                    results["methods"][method_str]["test_r2"][i, b - 3] = np.nan
+                    results["methods"][method_str]["time"][i, j] = np.nan
+                    results["methods"][method_str]["test_r2"][i, j] = np.nan
                 else:
                     time_taken, test_r2 = run_and_evaluate_method(method, samples, order, b, saved_samples_test)
-                    results["methods"][method_str]["time"][i, b - 3] = time_taken
-                    results["methods"][method_str]["test_r2"][i, b - 3] = test_r2
+                    results["methods"][method_str]["time"][i, j] = time_taken
+                    results["methods"][method_str]["test_r2"][i, j] = test_r2
                     print(f"{method_str}: {np.round(test_r2, 3)} test r2 in {np.round(time_taken, 3)} seconds")
             print()
         for s in active_sampler_dict.values():

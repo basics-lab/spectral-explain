@@ -4,7 +4,8 @@ from spectral_explain.qsft.utils import qary_ints_low_order
 from spectral_explain.utils import mobius_to_fourier, fourier_to_mobius
 
 def lime(signal, b, **kwargs):
-    return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, 1).T}, signal, signal.n, b)[0]
+    return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, 1).T}, signal, signal.n, b,
+                          fourier_basis=False)[0]
 def linear(signal, b, order=1, **kwargs):
     return fit_regression('linear', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b)[0]
 
