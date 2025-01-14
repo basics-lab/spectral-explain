@@ -25,12 +25,13 @@ class QAModel:
         super().__init__()
         self.explicands = get_dataset(task, num_explain, seed)
         self.device = device
-        self.mask_token = '<unk>'
-        quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True)
+       
+        # quantization_config = BitsAndBytesConfig(
+        # load_in_4bit=True,
+        # bnb_4bit_compute_dtype=torch.bfloat16,
+        # bnb_4bit_quant_type="nf4",
+        # bnb_4bit_use_double_quant=True)
+        quantization_config = BitsAndBytesConfig(load_in_8bit=True)
         self.model_name = self.explicands[0]['model_name']
         self.max_new_tokens = self.explicands[0]['max_new_tokens']
         self.batch_size = self.explicands[0]['model_batch_size']
@@ -41,22 +42,28 @@ class QAModel:
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = 'left'
+        self.mask_token = '<unk>'
         self.trained_model.eval()
   
 
     def set_explicand(self, explicand):
         self.explicand = explicand
         self.mask_level = explicand['mask_level']
+        self.get_original_output()
         return len(explicand['input'])
     
 
     def get_original_output(self):
-        input_strings = [self.explicand['original']]
+        #input_strings = [self.explicand['original']]
+        input_strings = [f'Context: {self.explicand['original']}\nQuestion: {self.explicand['question']}\nAnswer: ']
         inputs = self.tokenizer(input_strings, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
         with torch.no_grad():
-            model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], max_new_tokens=self.max_new_tokens, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
-        token_ids = model_outputs['sequences'][:,inputs['input_ids'].shape[1]:][0].detach().cpu().numpy().tolist()
-        return token_ids # shape is original answer tokens length
+            model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], length_penalty=1.0, do_sample=False, max_new_tokens=self.max_new_tokens, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
+        original_output_token_ids = model_outputs['sequences'][:,inputs['input_ids'].shape[1]:][0].detach().cpu().numpy().tolist()
+        print(f'Original output: {self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)}')
+        original_output_token_ids = [-1] + original_output_token_ids
+        self.original_output_token_ids = original_output_token_ids
+        #return token_ids # shape is original answer tokens length
 
    
     
@@ -75,19 +82,21 @@ class QAModel:
             print(batch_prompt[0])
             inputs = self.tokenizer(batch_prompt, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
             with torch.no_grad():
-                model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
-            token_probs = torch.log(F.softmax(torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,:],dim = 1))[:,original_output_token_ids[j+1]].detach().cpu().numpy() # log probs of the next token batch size * vocab size  
+                model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], do_sample=False, max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
+            token_probs = F.log_softmax(torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,:],dim = 1)[:,original_output_token_ids[j+1]].detach().cpu().numpy() # log probs of the next token (batch size * vocab size)
             batch_sequence_log_probs = [batch_sequence_log_probs[tok_pos] + token_probs[tok_pos] for tok_pos in range(len(batch_strings))]
+           
             del model_outputs, inputs
 
-        batch_sequence_log_probs = [batch_sequence_log_probs[i]/(len(original_output_token_ids) - 1) for i in range(len(batch_strings))]
+        batch_sequence_log_probs = np.array(batch_sequence_log_probs) * (-1.0/self.max_new_tokens)
+        #batch_sequence_log_probs = np.exp((-1.0/self.max_new_tokens)*np.array(batch_sequence_log_probs))#torch.logit(torch.tensor(batch_sequence_log_probs), eps = 1e-6).numpy().tolist()
         return batch_sequence_log_probs
   
     def inference(self, X):
         # X is the masking pattern
-        original_output_token_ids = self.get_original_output()
-        print(f'Original output: {self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)}')
-        original_output_token_ids = [-1] + original_output_token_ids
+        # original_output_token_ids = self.get_original_output()
+        # print(f'Original output: {self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)}')
+        # original_output_token_ids = [-1] + original_output_token_ids
         input_strings = []
         outputs = [0.0] * len(X)
        
@@ -107,10 +116,10 @@ class QAModel:
         count = 0
         for i in tqdm(range(0, len(input_strings), self.batch_size)):
             batch = input_strings[i:i+self.batch_size]
-            sequence_log_probs = self.get_sequence_log_probs(batch, original_output_token_ids)
+            sequence_log_probs = self.get_sequence_log_probs(batch, self.original_output_token_ids)
             outputs[count:count+len(sequence_log_probs)] = sequence_log_probs
             count += len(sequence_log_probs)
-        print(len(outputs))
+        
         return outputs
 
 class Reviews:

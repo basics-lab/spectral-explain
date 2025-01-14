@@ -174,8 +174,8 @@ class Drop(TextDataset):
         self.split = 'validation'
         self.mask_level = 'word'
         self.model_name = 'meta-llama/Llama-3.2-1B-Instruct'
-        self.max_new_tokens = 4
-        self.model_batch_size = 512
+        self.max_new_tokens = 3
+        self.model_batch_size = 256
         #self.model_name = 'HuggingFaceTB/SmolLM-135M'
 
     def load(self,mini, seed):
@@ -196,7 +196,7 @@ class Drop(TextDataset):
             question = f'{sample['question']}. Provide shortest answer possible, long answers are penalized heavily.'
             answer = sample['answers_spans']['spans'][0] #Assume first answer is correct
             answer_toks = tokenizer(answer,return_tensors = 'pt')['input_ids'][0,1:]
-            if answer_toks.shape[0] > 2:
+            if answer_toks.shape[0] > self.max_new_tokens:
                 continue
             cursor = 0
             substring = sample['passage']
@@ -206,7 +206,7 @@ class Drop(TextDataset):
                 locations.append((cursor + loc, cursor + loc + len(w)))
                 cursor += loc + len(w)
             documents.append({'original': original, 'input': context_words, 'locations': locations, 'question': question, 'answer': answer, 'mask_level': self.mask_level
-                              ,'max_new_tokens': self.max_new_tokens,'model_name': self.model_name,'model_batch_size': self.model_batch_size})
+                              ,'max_new_tokens': self.max_new_tokens,'model_name': self.model_name,'model_batch_size': self.model_batch_size,'id': sample['query_id']})
         self.documents = documents
 
 class CNN(TextDataset):
@@ -220,7 +220,7 @@ class CNN(TextDataset):
         self.mask_level = 'sentence'
         self.max_new_tokens = 8
         #self.model_name = 'meta-llama/Llama-3.2-1B-Instruct'
-        self.model_name = 'HuggingFaceTB/SmolLM-135M'
+        #self.model_name = 'HuggingFaceTB/SmolLM-135M'
         self.model_batch_size = 1024
     def load(self, mini, seed):
         self.documents = None
