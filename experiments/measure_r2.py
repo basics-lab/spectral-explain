@@ -1,6 +1,6 @@
 import numba
 import numpy as np
-import pickle
+import dill as pickle
 import time
 from tqdm import tqdm
 import os
@@ -29,59 +29,9 @@ def run_and_evaluate_method(method, samples, order, b, saved_samples_test, t=5):
         "faith_shapley": faith_shapley
     }.get(method, NotImplementedError())(samples, b, order=order, t=t)
     end_time = time.time()
-    return end_time - start_time, estimate_r2(reconstruction, saved_samples_test)
+    return end_time - start_time, estimate_r2(reconstruction, saved_samples_test), reconstruction
 
 
-
-class Alternative_Sampler:
-    def __init__(self, type, sampling_function, qsft_signal, n):
-        assert type in ["uniform", "shapley", "lime"]
-        self.queries_finder = {
-            "uniform": self.uniform_queries,
-            "shapley": self.shapley_queries,
-            "lime": self.lime_queries
-        }.get(type, NotImplementedError())
-
-        self.n = n
-        self.all_queries = []
-        self.all_samples = []
-        for m in range(len(qsft_signal.all_samples)):
-            queries_subsample = []
-            samples_subsample = []
-            for d in range(len(qsft_signal.all_samples[0])):
-                queries = self.queries_finder(len(qsft_signal.all_queries[m][d]))
-                if type == "shapley" and m == 0 and d == 0:
-                    queries[0, :] = np.zeros(n)
-                    queries[1, :] = np.ones(n)
-                queries_subsample.append(queries)
-                samples_subsample.append(sampling_function(queries))
-            self.all_queries.append(queries_subsample)
-            self.all_samples.append(samples_subsample)
-    
-    def uniform_queries(self, num_samples):
-        return np.random.choice(2, size=(num_samples, self.n))
-
-    def shapley_queries(self, num_samples):
-        shapley_kernel = np.array([1 / (comb(self.n, d) * d * (self.n - d)) for d in range(1, self.n)])
-        degrees = np.random.choice(range(1, self.n), size=num_samples, replace=True,
-                                   p=shapley_kernel / np.sum(shapley_kernel))
-        queries = []
-        for sample in range(num_samples):
-            q = np.zeros(self.n)
-            q[np.random.choice(range(self.n), size=degrees[sample], replace=False)] = 1
-            queries.append(q)
-        return np.array(queries)
-
-    def lime_queries(self, num_samples):
-        exponential_kernel = np.array([np.sqrt(np.exp(-(self.n - d) ** 2 / 25 ** 2)) for d in range(1, self.n)])
-        degrees = np.random.choice(range(1, self.n), size=num_samples, replace=True,
-                                   p=exponential_kernel / np.sum(exponential_kernel))
-        queries = []
-        for sample in range(num_samples):
-            q = np.zeros(self.n)
-            q[np.random.choice(range(self.n), size=degrees[sample], replace=False)] = 1
-            queries.append(q)
-        return np.array(queries)
 
 
 class BatchedAlternative_Sampler:
@@ -113,15 +63,6 @@ class BatchedAlternative_Sampler:
                 samples_subsample.append(samples[count: count + len(query)])
                 count += len(query)
             self.all_samples.append(samples_subsample)
-        
-        # count = 0
-        # for m in range(len(qsft_signal.all_samples)):
-        #     samples_subsample = []
-        #     for d in range(len(qsft_signal.all_samples[0])):
-        #         samples_subsample.append(samples[count: count + len(qsft_signal.all_samples[m][d])]) # list of lists
-        #         count += len(qsft_signal.all_samples[m][d])
-        #     self.all_samples.append(samples_subsample)            
-        #     count += len(qsft_signal.all_samples[m][d])
 
     def uniform_queries(self, num_samples):
         return np.random.choice(2, size=(num_samples, self.n))
@@ -148,17 +89,6 @@ class BatchedAlternative_Sampler:
             queries.append(q)
         return np.array(queries)
 
-
-# SAMPLER_DICT = {
-#     "qsft_hard": "qsft",
-#     "qsft_soft": "qsft",
-#     "linear": "uniform",
-#    "lasso": "uniform",
-#    "lime": "lime",
-#     "faith_banzhaf": "uniform",
-#    # "faith_shapley": "shapley"
-# }
-
 SAMPLER_DICT = {
     "qsft_hard": "qsft",
     "qsft_soft": "qsft",
@@ -166,7 +96,7 @@ SAMPLER_DICT = {
     "lasso": "uniform",
     "faith_banzhaf": "uniform",
     "lime": "lime",
-   # "faith_shapley": "shapley"
+   "faith_shapley": "shapley"
 }
 
 
@@ -179,9 +109,9 @@ def main():
     DEVICE = 'auto'
     NUM_EXPLAIN = 1
     MAX_ORDER = 4
-    MAX_B = 3
+    MAX_B = 8
     SEED = 80
-    num_test_samples = 100
+    num_test_samples = 10000
     METHODS = ['linear', 'lasso', 'qsft_hard', 'qsft_soft'] #'faith_banzhaf','lime' 'faith_shapley']
 
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
@@ -219,9 +149,11 @@ def main():
         query_indices_test = np.random.choice(2, size=(num_test_samples, n))
         saved_samples_test = query_indices_test, sampling_function(query_indices_test)
 
-        explicand_results['test_samples'] = saved_samples_test
+        explicand_results['test_queries'] = saved_samples_test[0]
+        explicand_results['test_samples'] = saved_samples_test[1]
         explicand_results['sequence_length'] = n
         explicand_results['explicand'] = explicand
+        explicand_results['original_answer'] = (model.original_decoded_output, model.original_output_token_ids)
 
 
         unix_time_seconds = str(int(time.time()))
@@ -238,16 +170,19 @@ def main():
 
         # Draws an equal number of uniform samples
         active_sampler_dict = {"qsft": qsft_signal}
-        explicand_results['qsft'] = qsft_signal
+        explicand_results["qsft"] = qsft_signal
         for sampler in tqdm(sampler_set):
             if sampler != "qsft":
                 active_sampler_dict[sampler] = BatchedAlternative_Sampler(sampler, sampling_function, qsft_signal, n)
                 explicand_results[sampler] = active_sampler_dict[sampler]
+
                 print(f'finished {sampler} sampling')
         
         explicand_results["methods"] = {f'{method}_{order}': {'time': np.zeros((count_b)),
-                                          'test_r2': np.zeros((count_b))}
+                                          'test_r2': np.zeros((count_b)),
+                                          }
                     for method, order in ordered_methods}
+        #explicand_results['reconstruction'] = {}
         
         for b in range(3, MAX_B + 1):
             print(f"b = {b}")
@@ -259,7 +194,7 @@ def main():
                     explicand_results["methods"][method_str]["test_r2"][b - 3] = np.nan
                 else:
                     print(f"running {method_str}")
-                    time_taken, test_r2 = run_and_evaluate_method(method, samples, order, b, saved_samples_test)
+                    time_taken, test_r2, reconstruction = run_and_evaluate_method(method, samples, order, b, saved_samples_test)
                     explicand_results["methods"][method_str]["time"][b - 3] = time_taken
                     explicand_results["methods"][method_str]["test_r2"][b - 3] = test_r2
                     print(f"{method_str}: {np.round(test_r2, 3)} test r2 in {np.round(time_taken, 3)} seconds")
@@ -270,18 +205,7 @@ def main():
         print(explicand_results)
         with open(f'samples/results/{TASK}/{sample_id}/r2_results.pkl', 'wb') as handle:
             pickle.dump(explicand_results, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        results[sample_id] = explicand_results
-    
-    # with open(f'samples/results/{TASK}/agg_results.pkl', 'wb') as handle:
-    #     pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    
-    # if not os.path.exists(f'samples/results/{TASK}'):
-    #     os.makedirs(f'samples/results/{TASK}')
-    # with open(f'samples/results/{TASK}/r2_results.pkl', 'wb') as handle:
-    #     pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    # with open(f'{TASK}_{unix_time_seconds}.pkl', 'wb') as handle:
-    #     pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
+      
 
 if __name__ == "__main__":
     profiler = cProfile.Profile()
@@ -292,3 +216,19 @@ if __name__ == "__main__":
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats('tottime')
     stats.print_stats(50)
+
+
+
+
+
+  #results[sample_id] = explicand_results
+    
+    # with open(f'samples/results/{TASK}/agg_results.pkl', 'wb') as handle:
+    #     pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    
+    # if not os.path.exists(f'samples/results/{TASK}'):
+    #     os.makedirs(f'samples/results/{TASK}')
+    # with open(f'samples/results/{TASK}/r2_results.pkl', 'wb') as handle:
+    #     pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open(f'{TASK}_{unix_time_seconds}.pkl', 'wb') as handle:
+    #     pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)

@@ -11,6 +11,14 @@ from spectral_explain.dataloader import get_dataset
 from transformers import BitsAndBytesConfig
 from nltk.tokenize import word_tokenize, sent_tokenize
 
+
+
+# quantization_config = BitsAndBytesConfig(
+# load_in_4bit=True,
+# bnb_4bit_compute_dtype=torch.bfloat16,
+# bnb_4bit_quant_type="nf4",
+# bnb_4bit_use_double_quant=True)
+
 class TextModel:
     """Class for any model."""
 
@@ -25,12 +33,6 @@ class QAModel:
         super().__init__()
         self.explicands = get_dataset(task, num_explain, seed)
         self.device = device
-       
-        # quantization_config = BitsAndBytesConfig(
-        # load_in_4bit=True,
-        # bnb_4bit_compute_dtype=torch.bfloat16,
-        # bnb_4bit_quant_type="nf4",
-        # bnb_4bit_use_double_quant=True)
         quantization_config = BitsAndBytesConfig(load_in_8bit=True)
         self.model_name = self.explicands[0]['model_name']
         self.max_new_tokens = self.explicands[0]['max_new_tokens']
@@ -60,9 +62,11 @@ class QAModel:
         with torch.no_grad():
             model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], length_penalty=1.0, do_sample=False, max_new_tokens=self.max_new_tokens, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
         original_output_token_ids = model_outputs['sequences'][:,inputs['input_ids'].shape[1]:][0].detach().cpu().numpy().tolist()
-        print(f'Original output: {self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)}')
+        original_decoded_output = self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)
+        print(f'Original output: {original_decoded_output}')
         original_output_token_ids = [-1] + original_output_token_ids
-        self.original_output_token_ids = original_output_token_ids
+        self.original_output_token_ids = original_output_token_ids[1:]
+        self.original_decoded_output = original_decoded_output
         #return token_ids # shape is original answer tokens length
 
    
@@ -88,15 +92,11 @@ class QAModel:
            
             del model_outputs, inputs
 
-        batch_sequence_log_probs = np.array(batch_sequence_log_probs) * (-1.0/self.max_new_tokens)
-        #batch_sequence_log_probs = np.exp((-1.0/self.max_new_tokens)*np.array(batch_sequence_log_probs))#torch.logit(torch.tensor(batch_sequence_log_probs), eps = 1e-6).numpy().tolist()
+        batch_sequence_log_probs = np.array(batch_sequence_log_probs) * (-1.0/self.max_new_tokens) # log perplexity
         return batch_sequence_log_probs
   
     def inference(self, X):
         # X is the masking pattern
-        # original_output_token_ids = self.get_original_output()
-        # print(f'Original output: {self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)}')
-        # original_output_token_ids = [-1] + original_output_token_ids
         input_strings = []
         outputs = [0.0] * len(X)
        
