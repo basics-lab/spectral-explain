@@ -153,13 +153,13 @@ def main():
         explicand_results['test_samples'] = saved_samples_test[1]
         explicand_results['sequence_length'] = n
         explicand_results['explicand'] = explicand
-        explicand_results['original_answer'] = (model.original_decoded_output, model.original_output_token_ids)
+        explicand_results['original_answer'] = (model.original_decoded_output, model.original_output_token_ids[1:])
 
 
         unix_time_seconds = str(int(time.time()))
-        if not os.path.exists(f'samples/results/{TASK}/{sample_id}'):
-            os.makedirs(f'samples/results/{TASK}/{sample_id}')
-        save_dir = f'samples/results/{TASK}/{sample_id}' #+ unix_time_seconds
+        if not os.path.exists(f'experiments/results/{TASK}/{sample_id}'):
+            os.makedirs(f'experiments/results/{TASK}/{sample_id}')
+        save_dir = f'experiments/results/{TASK}/{sample_id}' #+ unix_time_seconds
 
         torch.cuda.empty_cache()
 
@@ -201,9 +201,8 @@ def main():
             print()
         for s in active_sampler_dict.values():
             del s
-        #shutil.rmtree(save_dir)
-        print(explicand_results)
-        with open(f'samples/results/{TASK}/{sample_id}/r2_results.pkl', 'wb') as handle:
+        #print(explicand_results)
+        with open(f'experiments/results/{TASK}/{sample_id}/r2_results.pkl', 'wb') as handle:
             pickle.dump(explicand_results, handle, protocol=pickle.HIGHEST_PROTOCOL)
       
 

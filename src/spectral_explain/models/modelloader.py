@@ -37,7 +37,6 @@ class QAModel:
         self.model_name = self.explicands[0]['model_name']
         self.max_new_tokens = self.explicands[0]['max_new_tokens']
         self.batch_size = self.explicands[0]['model_batch_size']
-        #model_name = "HuggingFaceTB/SmolLM-135M"
 
         self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, 
                             device_map = self.device,  quantization_config=quantization_config,attn_implementation="flash_attention_2")
@@ -65,7 +64,7 @@ class QAModel:
         original_decoded_output = self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)
         print(f'Original output: {original_decoded_output}')
         original_output_token_ids = [-1] + original_output_token_ids
-        self.original_output_token_ids = original_output_token_ids[1:]
+        self.original_output_token_ids = original_output_token_ids
         self.original_decoded_output = original_decoded_output
         #return token_ids # shape is original answer tokens length
 
