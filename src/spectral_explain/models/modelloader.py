@@ -8,8 +8,9 @@ import torch
 from tqdm import tqdm
 from copy import deepcopy, copy
 from spectral_explain.dataloader import get_dataset
-from transformers import BitsAndBytesConfig
+#from transformers import BitsAndBytesConfig
 from nltk.tokenize import word_tokenize, sent_tokenize
+import gc
 
 
 
@@ -33,13 +34,13 @@ class QAModel:
         super().__init__()
         self.explicands = get_dataset(task, num_explain, seed)
         self.device = device
-        quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+        #quantization_config = BitsAndBytesConfig(load_in_8bit=True)
         self.model_name = self.explicands[0]['model_name']
         self.max_new_tokens = self.explicands[0]['max_new_tokens']
         self.batch_size = self.explicands[0]['model_batch_size']
 
-        self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, 
-                            device_map = self.device,  quantization_config=quantization_config,attn_implementation="flash_attention_2")
+        self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype = torch.float16,
+                            device_map = self.device, attn_implementation = "flash_attention_2")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = 'left'
@@ -56,14 +57,17 @@ class QAModel:
 
     def get_original_output(self):
         #input_strings = [self.explicand['original']]
-        input_strings = [f'Context: {self.explicand['original']}\nQuestion: {self.explicand['question']}\nAnswer: ']
+        input_strings = [f"Context: {self.explicand['original']}\nQuestion: {self.explicand['question']}\nAnswer: "]
         inputs = self.tokenizer(input_strings, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
         with torch.no_grad():
-            model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], length_penalty=1.0, do_sample=False, max_new_tokens=self.max_new_tokens, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
+            model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], 
+                                                        length_penalty=1.0, do_sample=False, max_new_tokens=self.max_new_tokens, output_scores=True, 
+                                                        pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
         original_output_token_ids = model_outputs['sequences'][:,inputs['input_ids'].shape[1]:][0].detach().cpu().numpy().tolist()
         original_decoded_output = self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)
         print(f'Original output: {original_decoded_output}')
         original_output_token_ids = [-1] + original_output_token_ids
+        del model_outputs, inputs
         self.original_output_token_ids = original_output_token_ids
         self.original_decoded_output = original_decoded_output
         #return token_ids # shape is original answer tokens length
@@ -76,13 +80,13 @@ class QAModel:
             batch_prompt = []
             for input in batch_strings:
                 if original_output_token_ids[j] == -1:
-                    prompt = f'Context: {input}\nQuestion: {self.explicand['question']}\nAnswer: '
+                    prompt = f"Context: {input}\nQuestion: {self.explicand['question']}\nAnswer: "
                 else:
                     cur_answer = self.tokenizer.decode(original_output_token_ids[1:j+1], skip_special_tokens=False,clean_up_tokenization_spaces=True)
-                    prompt = f'Context: {input}\nQuestion: {self.explicand['question']}\nAnswer: ' + cur_answer
+                    prompt = f"Context: {input}\nQuestion: {self.explicand['question']}\nAnswer: " + cur_answer
               
                 batch_prompt.append(prompt)
-            print(batch_prompt[0])
+            #print(batch_prompt[0])
             inputs = self.tokenizer(batch_prompt, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
             with torch.no_grad():
                 model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], do_sample=False, max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
@@ -118,6 +122,8 @@ class QAModel:
             sequence_log_probs = self.get_sequence_log_probs(batch, self.original_output_token_ids)
             outputs[count:count+len(sequence_log_probs)] = sequence_log_probs
             count += len(sequence_log_probs)
+            torch.cuda.empty_cache()
+            gc.collect()
         
         return outputs
 

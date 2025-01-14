@@ -5,6 +5,7 @@ import time
 from tqdm import tqdm
 import os
 import shutil
+import gc
 import cProfile
 import pstats
 from spectral_explain.models.modelloader import get_model
@@ -110,8 +111,9 @@ def main():
     NUM_EXPLAIN = 1
     MAX_ORDER = 4
     MAX_B = 8
-    SEED = 80
+    SEED = 12
     num_test_samples = 10000
+    use_cache = True
     METHODS = ['linear', 'lasso', 'qsft_hard', 'qsft_soft'] #'faith_banzhaf','lime' 'faith_shapley']
 
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
@@ -146,6 +148,15 @@ def main():
         n = model.set_explicand(explicand)
         sampling_function = lambda X: model.inference(X)
 
+        unix_time_seconds = str(int(time.time()))
+        if not os.path.exists(f'experiments/results/{TASK}/{sample_id}'):
+            os.makedirs(f'experiments/results/{TASK}/{sample_id}')
+        else:
+            if use_cache:
+                print("Set use_cache = True and directory already exists")
+                continue
+        save_dir = f'experiments/results/{TASK}/{sample_id}' #+ unix_time_seconds
+
         query_indices_test = np.random.choice(2, size=(num_test_samples, n))
         saved_samples_test = query_indices_test, sampling_function(query_indices_test)
 
@@ -155,13 +166,8 @@ def main():
         explicand_results['explicand'] = explicand
         explicand_results['original_answer'] = (model.original_decoded_output, model.original_output_token_ids[1:])
 
-
-        unix_time_seconds = str(int(time.time()))
-        if not os.path.exists(f'experiments/results/{TASK}/{sample_id}'):
-            os.makedirs(f'experiments/results/{TASK}/{sample_id}')
-        save_dir = f'experiments/results/{TASK}/{sample_id}' #+ unix_time_seconds
-
         torch.cuda.empty_cache()
+        gc.collect()
 
 
         # Sample explanation function for choice of max b

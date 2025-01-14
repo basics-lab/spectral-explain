@@ -174,8 +174,8 @@ class Drop(TextDataset):
         self.split = 'validation'
         self.mask_level = 'word'
         self.model_name = 'meta-llama/Llama-3.2-1B-Instruct'
-        self.max_new_tokens = 3
-        self.model_batch_size = 256
+        self.max_new_tokens = 1
+        self.model_batch_size = 1024
         #self.model_name = 'HuggingFaceTB/SmolLM-135M'
 
     def load(self,mini, seed):
@@ -193,7 +193,7 @@ class Drop(TextDataset):
             else:
                 raise ValueError(f'Invalid mask level: {self.mask_level}')
             original = sample['passage']
-            question = f'{sample['question']}. Provide shortest answer possible, long answers are penalized heavily.'
+            question = f"{sample['question']}. Provide shortest answer possible, long answers are penalized heavily."
             answer = sample['answers_spans']['spans'][0] #Assume first answer is correct
             answer_toks = tokenizer(answer,return_tensors = 'pt')['input_ids'][0,1:]
             if answer_toks.shape[0] > self.max_new_tokens:
