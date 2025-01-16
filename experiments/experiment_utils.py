@@ -39,8 +39,32 @@ def shapley(sampling_function, num_samples, n):
         max_order=1
     )
     shapley_values = explainer.explain(np.ones((1,n)), budget=num_samples)
+    print(shapley_values.values)
     return shapley_values.values
 
+def banzhaf(signal, b, **kwargs):
+    # maximum sample reuse strategy from
+    # Eq (5) of Data Banzhaf: https://arxiv.org/pdf/2205.15466
+    coordinates = []
+    values = []
+    for m in range(len(signal.all_samples)):
+        for d in range(len(signal.all_samples[0])):
+            for z in range(2 ** b):
+                coordinates.append(signal.all_queries[m][d][z])
+                values.append(np.real(signal.all_samples[m][d][z]))
+
+    coordinates = np.array(coordinates)
+    values = np.array(values)
+
+    banzhaf_values = np.zeros(signal.n)
+    for idx in range(signal.n):
+        mask = coordinates[:, idx] > 0.5
+        banzhaf_values[idx] = (1 / np.sum(mask)) * np.sum(values[mask]) - (1 / np.sum(1 - mask)) * np.sum(
+            values[1 - mask])
+    print(banzhaf_values)
+    linear_locs = qary_ints_low_order(signal.n, 2, 1).T.astype(int)[1:, :]
+    # Fourier coefficient is -2 * banzhaf value
+    return {tuple(linear_locs[i]): -2.0 * banzhaf_values[i] for i in range(signal.n)}
 
 
 
