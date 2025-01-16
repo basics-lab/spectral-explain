@@ -113,7 +113,7 @@ class Reviews(TextDataset):
 
     def load(self, mini):
         self.documents = []
-        filename = 'data/sentiment.csv'
+        filename = 'data/sentiment_mini.csv' if mini else 'data/sentiment.csv'
 
         reviews = pd.read_csv(filename)['review']
         dataset = []

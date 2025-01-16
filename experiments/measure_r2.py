@@ -9,8 +9,8 @@ import pstats
 from spectral_explain.models.modelloader import get_model
 from spectral_explain.support_recovery import sampling_strategy
 from spectral_explain.utils import estimate_r2
-from experiment_utils import linear, lasso, lime, qsft_hard, qsft_soft, faith_banzhaf, faith_shapley
-from math import comb
+from experiment_utils import linear, lasso, lime, qsft_hard, qsft_soft, faith_banzhaf, faith_shapley, Alternative_Sampler
+
 
 
 def run_and_evaluate_method(method, samples, order, b, saved_samples_test, t=5):
@@ -27,58 +27,6 @@ def run_and_evaluate_method(method, samples, order, b, saved_samples_test, t=5):
     end_time = time.time()
     return end_time - start_time, estimate_r2(reconstruction, saved_samples_test)
 
-
-class Alternative_Sampler:
-    def __init__(self, type, sampling_function, qsft_signal, n):
-        assert type in ["uniform", "shapley", "lime"]
-        self.queries_finder = {
-            "uniform": self.uniform_queries,
-            "shapley": self.shapley_queries,
-            "lime": self.lime_queries
-        }.get(type, NotImplementedError())
-
-        self.n = n
-        self.all_queries = []
-        self.all_samples = []
-        for m in range(len(qsft_signal.all_samples)):
-            queries_subsample = []
-            samples_subsample = []
-            for d in range(len(qsft_signal.all_samples[0])):
-                queries = self.queries_finder(len(qsft_signal.all_queries[m][d]))
-                if type == "shapley" and m == 0 and d == 0:
-                    queries[0, :] = np.zeros(n)
-                    queries[1, :] = np.ones(n)
-                queries_subsample.append(queries)
-                samples_subsample.append(sampling_function(queries))
-            self.all_queries.append(queries_subsample)
-            self.all_samples.append(samples_subsample)
-
-    def uniform_queries(self, num_samples):
-        return np.random.choice(2, size=(num_samples, self.n))
-
-    def shapley_queries(self, num_samples):
-        shapley_kernel = np.array([1 / (comb(self.n, d) * d * (self.n - d)) for d in range(1, self.n)])
-        degrees = np.random.choice(range(1, self.n), size=num_samples, replace=True,
-                                   p=shapley_kernel / np.sum(shapley_kernel))
-        queries = []
-        for sample in range(num_samples):
-            q = np.zeros(self.n)
-            q[np.random.choice(range(self.n), size=degrees[sample], replace=False)] = 1
-            queries.append(q)
-        return np.array(queries)
-
-    def lime_queries(self, num_samples):
-        exponential_kernel = np.array([np.sqrt(np.exp(-(self.n - d) ** 2 / 25 ** 2)) for d in range(1, self.n)])
-        degrees = np.random.choice(range(1, self.n), size=num_samples, replace=True,
-                                   p=exponential_kernel / np.sum(exponential_kernel))
-        queries = []
-        for sample in range(num_samples):
-            q = np.zeros(self.n)
-            q[np.random.choice(range(self.n), size=degrees[sample], replace=False)] = 1
-            queries.append(q)
-        return np.array(queries)
-
-
 SAMPLER_DICT = {
     "qsft_hard": "qsft",
     "qsft_soft": "qsft",
@@ -89,13 +37,12 @@ SAMPLER_DICT = {
     "faith_shapley": "shapley"
 }
 
-
 def main():
     # choose TASK from parkinsons, cancer, sentiment,
     # sentiment_mini, similarity, similarity_mini,
     # comprehension, comprehension_mini, clinical
-    TASK = 'cancer'
-    DEVICE = 'cpu'
+    TASK = 'sentiment'
+    DEVICE = 'cuda'
     NUM_EXPLAIN = 500
     MAX_ORDER = 4
     MAX_B = 8

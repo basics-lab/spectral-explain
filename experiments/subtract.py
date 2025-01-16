@@ -1,19 +1,13 @@
 import numba
 import numpy as np
-from pyarrow import list_
 
-from spectral_explain.dataloader import get_dataset
 from spectral_explain.models.modelloader import get_model
 from spectral_explain.support_recovery import sampling_strategy, support_recovery
-from spectral_explain.qsft.qsft import fit_regression, transform_via_amp
-from spectral_explain.baselines import neural_network
-from experiment_utils import linear, lasso, amp, qsft_hard, qsft_soft
-from spectral_explain.qsft.utils import qary_ints_low_order
+from experiment_utils import linear, lasso, qsft_hard, qsft_soft, lime, faith_banzhaf, faith_shapley, Alternative_Sampler
 import pickle
 import time
 import os
 from math import prod
-from spectral_explain.utils import estimate_r2
 import shutil
 import cProfile
 import pstats
@@ -116,61 +110,72 @@ def compute_best_subtraction(transform, method, num_to_subtract=10):
         raise NotImplementedError()
     return masks, subtracted
 
-def subtraction_test(reconstruction, sampling_function, method):
-    sub_mask, subtracted = compute_best_subtraction(reconstruction, method)
+def subtraction_test(reconstruction, sampling_function, method, subtract_dist):
+    sub_mask, subtracted = compute_best_subtraction(reconstruction, method, subtract_dist)
     f = sampling_function(sub_mask)
     res = abs(f[0] - f) / abs(f[0])
-    if len(res) < 11:
-        res = np.pad(res, pad_width=(0, 11 - len(res)), constant_values=-1)
+    if len(res) < subtract_dist + 1:
+        res = np.pad(res, pad_width=(0, subtract_dist + 1 - len(res)), constant_values=np.nan)
     return res, subtracted
 
-
-def run_and_evaluate_method(method, signal, b, sampling_function, t=5):
+def run_and_evaluate_method(method, samples, order, b, sampling_function, subtract_dist, t=5):
     start_time = time.time()
-    if "first" in method:
-        order = 1
-    elif "second" in method:
-        order = 2
-    else:
-        order = None
     reconstruction = {
-        "linear_first": linear,
-        "linear_second": linear,
-        "lasso_first": lasso,
-        "lasso_second": lasso,
-        "amp_first": amp,
-        "amp_second": amp,
+        "linear": linear,
+        "lasso": lasso,
+        "lime": lime,
         "qsft_hard": qsft_hard,
         "qsft_soft": qsft_soft,
-        }.get(method, NotImplementedError())(signal, b, order=order, t=t)
-    subtraction_method = {
-        "linear_first": 'linear',
-        "linear_second": 'smart-greedy',
-        "lasso_first": 'linear',
-        "lasso_second": 'smart-greedy',
-        "amp_first": 'linear',
-        "amp_second": 'smart-greedy',
-        "qsft_hard": 'smart-greedy',
-        "qsft_soft": 'smart-greedy',
-        }
+        "faith_banzhaf": faith_banzhaf,
+        "faith_shapley": faith_shapley
+    }.get(method, NotImplementedError())(samples, b, order=order, t=t)
+    if order == 1:
+        subtraction_method = 'linear'
+    else:
+        subtraction_method = 'smart-greedy'
+    subtraction_method = "greedy"
     end_time = time.time()
-    subtraction_list, subtracted = subtraction_test(reconstruction, sampling_function, subtraction_method[method])
+    subtraction_list, subtracted = subtraction_test(reconstruction, sampling_function, subtraction_method, subtract_dist)
     return end_time - start_time, subtraction_list, subtracted
 
+SAMPLER_DICT = {
+    "qsft_hard": "qsft",
+    "qsft_soft": "qsft",
+    "linear": "uniform",
+    "lasso": "uniform",
+    "lime": "lime",
+    "faith_banzhaf": "uniform",
+    "faith_shapley": "shapley"
+}
+
 def main():
-    TASK = 'cancer'
-    DEVICE = 'cpu'
-    NUM_EXPLAIN = 3
-    METHODS = ['qsft_hard', 'qsft_soft', 'amp_first', 'lasso_first', 'linear_first']
+    TASK = 'sentiment_mini'
+    DEVICE = 'cuda'
+    NUM_EXPLAIN = 10
+    METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
     MAX_B = 8
-    count_b = MAX_B - 2
-    SUBTRACT_DIST = 10
+    ALL_Bs = False
+    MAX_ORDER = 4
+    SUBTRACT_DIST = 8
+
+    sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
+
+    ordered_methods = []
+    for regression in ['linear', 'lasso', 'faith_banzhaf', 'faith_shapley']:
+        if regression in METHODS:
+            ordered_methods += [(regression, order) for order in range(1, MAX_ORDER + 1)]
+            METHODS.remove(regression)
+    ordered_methods += [(method, 0) for method in METHODS]
+
+    count_b = MAX_B - 2 if ALL_Bs else 1
+
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
+
     results = {
         "samples": np.zeros((NUM_EXPLAIN, count_b)),
-        "methods": {method: {'time': np.zeros((NUM_EXPLAIN, count_b)), 'test_r2': np.zeros((NUM_EXPLAIN, count_b,
+        "methods": {f'{method}_{order}': {'time': np.zeros((NUM_EXPLAIN, count_b)), 'test_r2': np.zeros((NUM_EXPLAIN, count_b,
                                                                                             SUBTRACT_DIST+1))}
-                    for method in METHODS}
+                    for method, order in ordered_methods}
     }
     np.random.seed(0)
     for i, explicand in enumerate(explicands):
@@ -182,21 +187,42 @@ def main():
         save_dir = 'samples/' + unix_time_seconds
 
         # Sample explanation function for choice of max b
-        signal, num_samples = sampling_strategy(sampling_function, MAX_B, n, save_dir)
-        results["samples"][i, :] = num_samples
+        qsft_signal, num_samples = sampling_strategy(sampling_function, MAX_B, n, save_dir)
+        results["samples"][i, :] = num_samples if ALL_Bs else num_samples[-1]
 
-        for b in range(3, MAX_B+1):
+        # Draws an equal number of uniform samples
+        active_sampler_dict = {"qsft": qsft_signal}
+        for sampler in sampler_set:
+            if sampler != "qsft":
+                active_sampler_dict[sampler] = Alternative_Sampler(sampler, sampling_function, qsft_signal, n)
+
+        for b in range(3 if ALL_Bs else MAX_B, MAX_B + 1):
             print(f"b = {b}")
-            for method in METHODS:
-                time_taken, subtract_list, subtracted = run_and_evaluate_method(method, signal, b, sampling_function)
-                results["methods"][method]["time"][i, b-3] = time_taken
-                results["methods"][method]["test_r2"][i, b-3, :] = subtract_list
-                print(f"{method}: {np.round(subtract_list, 3)} in {np.round(time_taken, 3)} seconds, subtracted {subtracted}")
+            j = b - 3 if ALL_Bs else 0
+            for method, order in ordered_methods:
+                method_str = f'{method}_{order}'
+                samples = active_sampler_dict[SAMPLER_DICT[method]]
+                if (order >= 2 and n >= 128) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16):
+                    results["methods"][method_str]["time"][i, j] = np.nan
+                    results["methods"][method_str]["test_r2"][i, j] = np.nan
+                else:
+                    time_taken, subtract_list, subtracted = run_and_evaluate_method(method, samples, order, b, sampling_function, SUBTRACT_DIST)
+                    results["methods"][method_str]["time"][i, j] = time_taken
+                    results["methods"][method_str]["test_r2"][i, j, :] = subtract_list
+                    print(
+                        f"{method_str}: {np.round(subtract_list, 3)[1:]} in {np.round(time_taken, 3)} seconds, subtracted {subtracted}")
+                    print([explicand['input'][s] for s in subtracted])
             print()
-
+        for s in active_sampler_dict.values():
+            del s
         shutil.rmtree(save_dir)
+    print('FINAL RESULTS')
+    for method, order in ordered_methods:
+        method_str = f'{method}_{order}'
+        print(method_str)
+        print(np.nanmean(results["methods"][method_str]["test_r2"][:,0,:], axis=0))
 
-    with open(f'{TASK}.pkl', 'wb') as handle:
+    with open(f'{TASK}_subtract.pkl', 'wb') as handle:
         pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 if __name__ == "__main__":

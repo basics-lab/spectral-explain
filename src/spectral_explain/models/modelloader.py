@@ -31,6 +31,18 @@ class Reviews:
 
     def set_explicand(self, explicand):
         self.explicand = explicand
+        if len(explicand['input']) > 300:
+            self.trained_model = pipeline("text-classification", model="lyrisha/distilbert-base-finetuned-sentiment",
+                                          device=self.device, batch_size=500, torch_dtype=torch.float16,
+                                          top_k=None, function_to_apply='none', truncation=True)
+        elif len(explicand['input']) > 150:
+            self.trained_model = pipeline("text-classification", model="lyrisha/distilbert-base-finetuned-sentiment",
+                                          device=self.device, batch_size=1000, torch_dtype=torch.float16,
+                                          top_k=None, function_to_apply='none', truncation=True)
+        else:
+            self.trained_model = pipeline("text-classification", model="lyrisha/distilbert-base-finetuned-sentiment",
+                                      device=self.device, batch_size=2000, torch_dtype=torch.float16,
+                                      top_k=None, function_to_apply='none', truncation=True)
         return len(explicand['input'])
 
     def inference(self, X):
