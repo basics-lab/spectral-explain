@@ -104,42 +104,6 @@ class TextDataset:
         return self.documents[:num_explain]
     
 
-# class HotpotQA(TextDataset):
-#     """HotpotQA dataset"""
-
-#     def __init__(self):
-#         super().__init__()
-#         self.name = 'hotpotqa'
-#         self.task = 'distractor'
-#         self.split = 'validation'
-
-#     def load(self, mini):
-#         self.documents  = None
-#         dataset = load_dataset('hotpot_qa', self.task, self.split)
-
-#         for sample in dataset:
-
-
-# class HotpotQA(TextDataset):
-#     """HotpotQA dataset"""
-
-#     def __init__(self):
-#         super().__init__()
-#         self.name = 'hotpotqa'
-#         self.task = 'distractor'
-#         self.split = 'validation'
-    
-
-# class CNN(TextDataset):
-#     """CNN dataset"""
-
-#     def __init__(self):
-#         super().__init__()
-#         self.name = 'cnn'
-#         self.task = 'distractor'
-#         self.split = 'validation'
-    
-
 class HotpotQA(TextDataset):
     """HotpotQA dataset"""
 
@@ -175,8 +139,7 @@ class Drop(TextDataset):
         self.mask_level = 'word'
         self.model_name = 'meta-llama/Llama-3.2-1B-Instruct'
         self.max_new_tokens = 1
-        self.model_batch_size = 1024
-        #self.model_name = 'HuggingFaceTB/SmolLM-135M'
+        self.model_batch_size = 128
 
     def load(self,mini, seed):
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)

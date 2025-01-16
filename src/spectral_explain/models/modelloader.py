@@ -8,17 +8,17 @@ import torch
 from tqdm import tqdm
 from copy import deepcopy, copy
 from spectral_explain.dataloader import get_dataset
-#from transformers import BitsAndBytesConfig
+from transformers import BitsAndBytesConfig
 from nltk.tokenize import word_tokenize, sent_tokenize
 import gc
 
 
 
-# quantization_config = BitsAndBytesConfig(
-# load_in_4bit=True,
-# bnb_4bit_compute_dtype=torch.bfloat16,
-# bnb_4bit_quant_type="nf4",
-# bnb_4bit_use_double_quant=True)
+quantization_config = BitsAndBytesConfig(
+load_in_4bit=True,
+bnb_4bit_compute_dtype=torch.bfloat16,
+bnb_4bit_quant_type="nf4",
+bnb_4bit_use_double_quant=True)
 
 class TextModel:
     """Class for any model."""
@@ -30,7 +30,7 @@ class TextModel:
         raise NotImplementedError()
 
 class QAModel:
-    def __init__(self, task, num_explain, device, seed):
+    def __init__(self, task, num_explain, device, seed, quantization_config = quantization_config):
         super().__init__()
         self.explicands = get_dataset(task, num_explain, seed)
         self.device = device
@@ -40,7 +40,7 @@ class QAModel:
         self.batch_size = self.explicands[0]['model_batch_size']
 
         self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype = torch.float16,
-                            device_map = self.device, attn_implementation = "flash_attention_2")
+                            device_map = self.device, quantization_config = quantization_config) # attn_implementation = "flash_attention_2"
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = 'left'

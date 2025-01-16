@@ -1,22 +1,28 @@
 import numba
 import numpy as np
-import dill as pickle
 import time
+import pandas as pd
 from tqdm import tqdm
-import os
-import shutil
-import gc
-import cProfile
-import pstats
+import dill as pickle
+import os, shutil, cProfile, pstats, gc, argparse
 from spectral_explain.models.modelloader import get_model
 from spectral_explain.support_recovery import sampling_strategy
 from spectral_explain.utils import estimate_r2
-from experiment_utils import linear, lasso, lime, qsft_hard, qsft_soft, faith_banzhaf, faith_shapley
-from math import comb
+from experiment_utils import linear, lasso, lime, qsft_hard, qsft_soft, faith_banzhaf, faith_shapley, BatchedAlternative_Sampler, get_and_save_samples, get_methods
 import torch
-# TODO:
-# 1. 
-# 5. Add a new method for the spectral explaine
+from math import comb
+
+SAMPLER_DICT = {
+    "qsft_hard": "qsft",
+    "qsft_soft": "qsft",
+    "linear": "uniform",
+    "lasso": "uniform",
+    "faith_banzhaf": "uniform",
+    "lime": "lime",
+   "faith_shapley": "shapley"
+}
+
+METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley'] #'faith_banzhaf','lime' 'faith_shapley']
 
 def run_and_evaluate_method(method, samples, order, b, saved_samples_test, t=5):
     start_time = time.time()
@@ -32,145 +38,54 @@ def run_and_evaluate_method(method, samples, order, b, saved_samples_test, t=5):
     end_time = time.time()
     return end_time - start_time, estimate_r2(reconstruction, saved_samples_test), reconstruction
 
+        
+        
+
+def flush():
+    torch.cuda.empty_cache()
+    gc.collect()
+    torch.cuda.reset_max_memory_allocated()
+    torch.cuda.reset_peak_memory_stats()
 
 
 
-class BatchedAlternative_Sampler:
-    def __init__(self, type, sampling_function, qsft_signal, n):
-        assert type in ["uniform", "shapley", "lime"]
-        self.queries_finder = {
-            "uniform": self.uniform_queries,
-            "shapley": self.shapley_queries,
-            "lime": self.lime_queries
-        }.get(type, NotImplementedError())
-        self.n = n
-        self.all_queries = []
-        self.all_samples = []
-        for m in range(len(qsft_signal.all_samples)):
-            queries_subsample = []
-            for d in range(len(qsft_signal.all_samples[0])):
-                queries = self.queries_finder(len(qsft_signal.all_queries[m][d]))
-                if type == "shapley" and m == 0 and d == 0:
-                    queries[0, :] = np.zeros(n)
-                    queries[1, :] = np.ones(n)
-                queries_subsample.append(queries)
-            self.all_queries.append(queries_subsample)
-        query_matrix = np.concatenate([np.concatenate(queries_subsample, axis=0) for queries_subsample in self.all_queries], axis=0)
-        samples = sampling_function(query_matrix)
-        count = 0
-        for queries_subsample in self.all_queries: # list of numpy arrays
-            samples_subsample = []
-            for query in queries_subsample:
-                samples_subsample.append(samples[count: count + len(query)])
-                count += len(query)
-            self.all_samples.append(samples_subsample)
 
-    def uniform_queries(self, num_samples):
-        return np.random.choice(2, size=(num_samples, self.n))
-
-    def shapley_queries(self, num_samples):
-        shapley_kernel = np.array([1 / (comb(self.n, d) * d * (self.n - d)) for d in range(1, self.n)])
-        degrees = np.random.choice(range(1, self.n), size=num_samples, replace=True,
-                                   p=shapley_kernel / np.sum(shapley_kernel))
-        queries = []
-        for sample in range(num_samples):
-            q = np.zeros(self.n)
-            q[np.random.choice(range(self.n), size=degrees[sample], replace=False)] = 1
-            queries.append(q)
-        return np.array(queries)
-
-    def lime_queries(self, num_samples):
-        exponential_kernel = np.array([np.sqrt(np.exp(-(self.n - d) ** 2 / 25 ** 2)) for d in range(1, self.n)])
-        degrees = np.random.choice(range(1, self.n), size=num_samples, replace=True,
-                                   p=exponential_kernel / np.sum(exponential_kernel))
-        queries = []
-        for sample in range(num_samples):
-            q = np.zeros(self.n)
-            q[np.random.choice(range(self.n), size=degrees[sample], replace=False)] = 1
-            queries.append(q)
-        return np.array(queries)
-
-SAMPLER_DICT = {
-    "qsft_hard": "qsft",
-    "qsft_soft": "qsft",
-    "linear": "uniform",
-    "lasso": "uniform",
-    "faith_banzhaf": "uniform",
-    "lime": "lime",
-   "faith_shapley": "shapley"
-}
-
-
-def main():
+def main(task = 'drop', seed = 0, device = 'cuda:0', 
+        MAX_B = 3, MAX_ORDER = 4, NUM_EXPLAIN = 1,
+        num_test_samples = 100, use_cache = True):
     # choose TASK from parkinsons, cancer, sentiment,
     # sentiment_mini, similarity, similarity_mini,
     # comprehension, comprehension_mini, clinical
     # context_cite (HotpotQA, DROP)
-    TASK = 'drop'
-    DEVICE = 'auto'
-    NUM_EXPLAIN = 1
-    MAX_ORDER = 4
-    MAX_B = 8
-    SEED = 12
-    num_test_samples = 10000
-    use_cache = True
-    METHODS = ['linear', 'lasso', 'qsft_hard', 'qsft_soft'] #'faith_banzhaf','lime' 'faith_shapley']
-
+    TASK, DEVICE, SEED, USE_CACHE = task, device, seed, use_cache
+    MAX_ORDER, NUM_EXPLAIN, MAX_B, num_test_samples = MAX_ORDER, NUM_EXPLAIN, MAX_B, num_test_samples
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
-
-    ordered_methods = []
-    for regression in ['linear', 'lasso', 'faith_banzhaf', 'faith_shapley']:
-        if regression in METHODS:
-            ordered_methods += [(regression, order) for order in range(1, MAX_ORDER + 1)]
-            METHODS.remove(regression)
-    ordered_methods += [(method, 0) for method in METHODS]
-
+    ordered_methods = get_methods(METHODS, MAX_ORDER)
     count_b = MAX_B - 2
-
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE, SEED)
-
-    # results = {
-    #     "samples": np.zeros((len(explicands), count_b)),
-    #     "methods": {f'{method}_{order}': {'time': np.zeros((len(explicands), count_b)),
-    #                                       'test_r2': np.zeros((len(explicands), count_b))}
-    #                 for method, order in ordered_methods},
-    #}
-
-    results = {}
-
     np.random.seed(SEED)
-    torch.cuda.empty_cache()
+
+  
+
+        
     for i, explicand in enumerate(explicands):
         explicand_results = {}
         print(explicand)
         print(f'sequence length: {len(explicand["input"])}')
         sample_id = explicand['id']
+        explicand_results['explicand'] = explicand
         n = model.set_explicand(explicand)
+        explicand_results['sequence_length'] = n
         sampling_function = lambda X: model.inference(X)
-
-        unix_time_seconds = str(int(time.time()))
-        if not os.path.exists(f'experiments/results/{TASK}/{sample_id}'):
-            os.makedirs(f'experiments/results/{TASK}/{sample_id}')
-        else:
-            if use_cache:
-                print("Set use_cache = True and directory already exists")
-                continue
         save_dir = f'experiments/results/{TASK}/{sample_id}' #+ unix_time_seconds
 
-        query_indices_test = np.random.choice(2, size=(num_test_samples, n))
-        saved_samples_test = query_indices_test, sampling_function(query_indices_test)
-
-        explicand_results['test_queries'] = saved_samples_test[0]
-        explicand_results['test_samples'] = saved_samples_test[1]
-        explicand_results['sequence_length'] = n
-        explicand_results['explicand'] = explicand
+        saved_samples_test = get_and_save_samples(sampling_function, type = 'test', num_test_samples = num_test_samples
+                                                  ,n = n, save_dir = save_dir, use_cache = USE_CACHE)
         explicand_results['original_answer'] = (model.original_decoded_output, model.original_output_token_ids[1:])
 
-        torch.cuda.empty_cache()
-        gc.collect()
+        flush()
 
-
-        # Sample explanation function for choice of max b
+        # Sample explanation function for choice of max b, caching automatically done
         qsft_signal, num_samples = sampling_strategy(sampling_function, MAX_B, n, save_dir)
         explicand_results["samples"] = num_samples
 
@@ -179,15 +94,13 @@ def main():
         explicand_results["qsft"] = qsft_signal
         for sampler in tqdm(sampler_set):
             if sampler != "qsft":
-                active_sampler_dict[sampler] = BatchedAlternative_Sampler(sampler, sampling_function, qsft_signal, n)
-                explicand_results[sampler] = active_sampler_dict[sampler]
-
+                active_sampler_dict[sampler] = get_and_save_samples(sampling_function, type = sampler, n = n, save_dir = save_dir,
+                                                                    use_cache = USE_CACHE, qsft_signal = qsft_signal)
                 print(f'finished {sampler} sampling')
         
         explicand_results["methods"] = {f'{method}_{order}': {'time': np.zeros((count_b)),
-                                          'test_r2': np.zeros((count_b)),
-                                          }
-                    for method, order in ordered_methods}
+                                          'test_r2': np.zeros((count_b))} for method, order in ordered_methods}
+        
         #explicand_results['reconstruction'] = {}
         
         for b in range(3, MAX_B + 1):
@@ -215,12 +128,23 @@ def main():
 if __name__ == "__main__":
     profiler = cProfile.Profile()
     profiler.enable()
-    numba.set_num_threads(8)
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    main()
+    numba.set_num_threads(5)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=12)
+    parser.add_argument("--device", type=str, default='cuda:0')
+    parser.add_argument("--task", type=str, default='drop')
+    parser.add_argument("--max_b", type=int, default=3)
+    parser.add_argument("--max_order", type=int, default=4)
+    parser.add_argument("--num_explain", type=int, default=1)
+    parser.add_argument("--num_test_samples", type=int, default=10000)
+    parser.add_argument("--use_cache", type=bool, default=True)
+    args = parser.parse_args()
+    main(seed = args.seed, device = args.device, task = args.task,
+         max_b = args.max_b, max_order = args.max_order, num_explain = args.num_explain,
+         num_test_samples = args.num_test_samples, use_cache = args.use_cache)
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats('tottime')
-    stats.print_stats(50)
+    #stats.print_stats(50)
 
 
 
@@ -237,3 +161,28 @@ if __name__ == "__main__":
     #     pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
     # with open(f'{TASK}_{unix_time_seconds}.pkl', 'wb') as handle:
     #     pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+    # ordered_methods = []
+    # for regression in ['linear', 'lasso', 'faith_banzhaf', 'faith_shapley']:
+    #     if regression in METHODS:
+    #         ordered_methods += [(regression, order) for order in range(1, MAX_ORDER + 1)]
+    #         METHODS.remove(regression)
+    # ordered_methods += [(method, 0) for method in METHODS]
+
+
+      # results = {
+    #     "samples": np.zeros((len(explicands), count_b)),
+    #     "methods": {f'{method}_{order}': {'time': np.zeros((len(explicands), count_b)),
+    #                                       'test_r2': np.zeros((len(explicands), count_b))}
+    #                 for method, order in ordered_methods},
+    #}                #active_sampler_dict[sampler] = BatchedAlternative_Sampler(sampler, sampling_function, qsft_signal, n)
+                #explicand_results[sampler] = active_sampler_dict[sampler]
+
+
+            # if not os.path.exists(f'experiments/results/{TASK}/{sample_id}'):
+        #     os.makedirs(f'experiments/results/{TASK}/{sample_id}')
+        # else:
+        #     if USE_CACHE:
+        #         print("Set use_cache = True and directory already exists")
+        #         continue
