@@ -4,6 +4,8 @@ from spectral_explain.qsft.utils import qary_ints_low_order
 from spectral_explain.utils import mobius_to_fourier, fourier_to_mobius
 import numpy as np
 from math import comb
+import shapiq
+from shapiq.approximator.sampling import CoalitionSampler
 
 def lime(signal, b, **kwargs):
     return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, 1).T}, signal, signal.n, b,
@@ -28,6 +30,18 @@ def qsft_hard(signal, b, t=5, **kwargs):
 
 def qsft_soft(signal, b, t=5, **kwargs):
     return support_recovery("soft", signal, b, t=t)["transform"]
+
+def shapley(sampling_function, num_samples, n):
+    explainer = shapiq.Explainer(
+        model=sampling_function,
+        data=np.zeros((1,n)),
+        index="SV",
+        max_order=1
+    )
+    shapley_values = explainer.explain(np.ones((1,n)), budget=num_samples)
+    return shapley_values.values
+
+
 
 
 class Alternative_Sampler:
@@ -54,6 +68,7 @@ class Alternative_Sampler:
                 samples_subsample.append(sampling_function(queries))
             self.all_queries.append(queries_subsample)
             self.all_samples.append(samples_subsample)
+        self.num_samples = sum([len(b) for batch in self.all_samples for b in batch])
 
     def uniform_queries(self, num_samples):
         return np.random.choice(2, size=(num_samples, self.n))
