@@ -9,7 +9,7 @@ import pstats
 from spectral_explain.models.modelloader import get_model
 from spectral_explain.support_recovery import sampling_strategy
 from spectral_explain.utils import estimate_r2
-from experiment_utils import linear, lasso, lime, qsft_hard, qsft_soft, faith_banzhaf, faith_shapley, Alternative_Sampler
+from experiment_utils import *
 
 
 
@@ -23,24 +23,17 @@ def run_and_evaluate_method(method, samples, order, b, saved_samples_test, t=5):
         reconstruction = {
             "linear": linear,
             "lasso": lasso,
-            "lime": lime,
+            "lime": LIME,
             "qsft_hard": qsft_hard,
             "qsft_soft": qsft_soft,
             "faith_banzhaf": faith_banzhaf,
-            "faith_shapley": faith_shapley
+            "faith_shapley": faith_shapley,
+            "shapley": shapley,
+            "banzhaf": banzhaf
         }.get(method, NotImplementedError())(samples, b, order=order, t=t)
     end_time = time.time()
     return end_time - start_time, estimate_r2(reconstruction, saved_samples_test)
 
-SAMPLER_DICT = {
-    "qsft_hard": "qsft",
-    "qsft_soft": "qsft",
-    "linear": "uniform",
-    "lasso": "uniform",
-    "lime": "lime",
-    "faith_banzhaf": "uniform",
-    "faith_shapley": "uniform",  # will use sampling from Shap-IQ later on
-}
 
 def main():
     # choose TASK from parkinsons, cancer, sentiment,

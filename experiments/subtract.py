@@ -3,7 +3,7 @@ import numpy as np
 
 from spectral_explain.models.modelloader import get_model
 from spectral_explain.support_recovery import sampling_strategy, support_recovery
-from experiment_utils import linear, lasso, qsft_hard, qsft_soft, lime, faith_banzhaf, faith_shapley, shapley, banzhaf, Alternative_Sampler
+from experiment_utils import *
 import pickle
 import time
 import os
@@ -130,25 +130,18 @@ def subtraction_test(reconstruction, sampling_function, method, subtract_dist, r
     return res, subtracted
 
 def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtract_dist, t=5):
-    if method in ['shapley', 'banzhaf']:
-        reconstruction = {
-            "shapley": shapley,
-            "banzhaf": banzhaf
-        }.get(method, NotImplementedError())(sampling_function, sampler.num_samples, sampler.n)
-        ranked_coefs = True
-    elif method in ['faith_shapley']:
-        reconstruction = faith_shapley(sampling_function, sampler.num_samples, sampler.n, order=order)
-        ranked_coefs = False
-    else:
-        reconstruction = {
-            "linear": linear,
-            "lasso": lasso,
-            "lime": lime,
-            "qsft_hard": qsft_hard,
-            "qsft_soft": qsft_soft,
-            "faith_banzhaf": faith_banzhaf,
-        }.get(method, NotImplementedError())(sampler, b, order=order, t=t)
-        ranked_coefs = False
+    reconstruction = {
+        "linear": linear,
+        "lasso": lasso,
+        "lime": LIME,
+        "qsft_hard": qsft_hard,
+        "qsft_soft": qsft_soft,
+        "faith_banzhaf": faith_banzhaf,
+        "faith_shapley": faith_shapley,
+        "shapley": shapley,
+        "banzhaf": banzhaf
+    }.get(method, NotImplementedError())(sampler, b, order=order, t=t)
+    ranked_coefs = False
 
     subtraction_method = "greedy"
     subtraction_list, subtracted = subtraction_test(reconstruction, sampling_function,
@@ -156,26 +149,14 @@ def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtra
                                                     ranked_coefs)
     return subtraction_list, subtracted
 
-SAMPLER_DICT = {
-    "qsft_hard": "qsft",
-    "qsft_soft": "qsft",
-    "linear": "uniform",
-    "lasso": "uniform",
-    "lime": "lime",
-    "faith_banzhaf": "uniform",
-    "faith_shapley": "uniform",  # will use sampling from Shap-IQ later on
-    "shapley": "uniform",  # will use sampling from Shap-IQ later on
-    "banzhaf": "uniform"
-}
-
 def main():
-    TASK = 'sentiment_mini'
-    DEVICE = 'cuda'
+    TASK = 'cancer'
+    DEVICE = 'cpu'
     NUM_EXPLAIN = 10
     METHODS = ['shapley', 'banzhaf', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
     MAX_B = 8
     ALL_Bs = False
-    MAX_ORDER = 2
+    MAX_ORDER = 1
     SUBTRACT_DIST = 8
 
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
@@ -231,7 +212,7 @@ def main():
                     results["methods"][method_str]["delta"][i, j, :] = subtract_list
                     print(
                         f"{method_str}: {np.round(subtract_list, 3)[1:]}, subtracted {subtracted}")
-                    print([explicand['input'][s] for s in subtracted])
+                    # print([explicand['input'][s] for s in subtracted])
             print()
         for s in active_sampler_dict.values():
             del s
