@@ -3,7 +3,7 @@ import numpy as np
 
 from spectral_explain.models.modelloader import get_model
 from spectral_explain.support_recovery import sampling_strategy, support_recovery
-from experiment_utils import linear, lasso, qsft_hard, qsft_soft, lime, faith_banzhaf, faith_shapley, shapley, Alternative_Sampler
+from experiment_utils import linear, lasso, qsft_hard, qsft_soft, lime, faith_banzhaf, faith_shapley, shapley, banzhaf, Alternative_Sampler
 import pickle
 import time
 import os
@@ -110,14 +110,14 @@ def compute_best_subtraction(transform, method, num_to_subtract=10):
         raise NotImplementedError()
     return masks, subtracted
 
-def subtraction_test(reconstruction, sampling_function, method, subtract_dist, shapley=False):
-    if shapley:
-        direction = 2 * (np.sum(reconstruction) < 0) - 1
-        subtracted = list(np.argsort(direction * reconstruction[1:])[:subtract_dist])
+def subtraction_test(reconstruction, sampling_function, method, subtract_dist, ranked_coefs=False):
+    if ranked_coefs:
+        direction = 2 * (sampling_function([1] * (len(reconstruction))) < 0) - 1
+        subtracted = list(np.argsort(direction * reconstruction)[:subtract_dist])
         sub_mask = []
-        for d in range(subtract_dist):
-            sub_mask.append([1] * (len(reconstruction) - 1))
-            for k in range(d+1):
+        for d in range(subtract_dist+1):
+            sub_mask.append([1] * (len(reconstruction)))
+            for k in range(d):
                 sub_mask[-1][subtracted[k]] = 0
     else:
         sub_mask, subtracted = compute_best_subtraction(reconstruction, method, subtract_dist)
@@ -128,12 +128,15 @@ def subtraction_test(reconstruction, sampling_function, method, subtract_dist, s
     return res, subtracted
 
 def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtract_dist, t=5):
-    start_time = time.time()
-    if method in ['shapley']:
+    if method in ['shapley', 'banzhaf']:
         reconstruction = {
-            "shapley": shapley
+            "shapley": shapley,
+            "banzhaf": banzhaf
         }.get(method, NotImplementedError())(sampling_function, sampler.num_samples, sampler.n)
-        shapley_recon = True
+        ranked_coefs = True
+    elif method in ['faith_shapley']:
+        reconstruction = faith_shapley(sampling_function, sampler.num_samples, sampler.n, order=order)
+        ranked_coefs = False
     else:
         reconstruction = {
             "linear": linear,
@@ -142,16 +145,14 @@ def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtra
             "qsft_hard": qsft_hard,
             "qsft_soft": qsft_soft,
             "faith_banzhaf": faith_banzhaf,
-            "faith_shapley": faith_shapley
         }.get(method, NotImplementedError())(sampler, b, order=order, t=t)
-        shapley_recon = False
+        ranked_coefs = False
 
     subtraction_method = "greedy"
-    end_time = time.time()
     subtraction_list, subtracted = subtraction_test(reconstruction, sampling_function,
                                                     subtraction_method, subtract_dist,
-                                                    shapley_recon)
-    return end_time - start_time, subtraction_list, subtracted
+                                                    ranked_coefs)
+    return subtraction_list, subtracted
 
 SAMPLER_DICT = {
     "qsft_hard": "qsft",
@@ -160,18 +161,19 @@ SAMPLER_DICT = {
     "lasso": "uniform",
     "lime": "lime",
     "faith_banzhaf": "uniform",
-    "faith_shapley": "shapley",
-    "shapley": "shapley"
+    "faith_shapley": "uniform",  # will use sampling from Shap-IQ later on
+    "shapley": "uniform",  # will use sampling from Shap-IQ later on
+    "banzhaf": "uniform"
 }
 
 def main():
     TASK = 'cancer'
     DEVICE = 'cpu'
     NUM_EXPLAIN = 10
-    METHODS = ['shapley', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
+    METHODS = ['shapley', 'banzhaf', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
     MAX_B = 8
     ALL_Bs = False
-    MAX_ORDER = 1
+    MAX_ORDER = 2
     SUBTRACT_DIST = 8
 
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
@@ -189,8 +191,8 @@ def main():
 
     results = {
         "samples": np.zeros((NUM_EXPLAIN, count_b)),
-        "methods": {f'{method}_{order}': {'time': np.zeros((NUM_EXPLAIN, count_b)), 'test_r2': np.zeros((NUM_EXPLAIN, count_b,
-                                                                                            SUBTRACT_DIST+1))}
+        "methods": {f'{method}_{order}': {'locations': np.zeros((NUM_EXPLAIN, count_b, SUBTRACT_DIST)),
+                                          'delta': np.zeros((NUM_EXPLAIN, count_b, SUBTRACT_DIST+1))}
                     for method, order in ordered_methods}
     }
     np.random.seed(0)
@@ -219,14 +221,14 @@ def main():
                 method_str = f'{method}_{order}'
                 samples = active_sampler_dict[SAMPLER_DICT[method]]
                 if (order >= 2 and n >= 128) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16):
-                    results["methods"][method_str]["time"][i, j] = np.nan
-                    results["methods"][method_str]["test_r2"][i, j] = np.nan
+                    results["methods"][method_str]["locations"][i, j, :] = np.nan
+                    results["methods"][method_str]["delta"][i, j, :] = np.nan
                 else:
-                    time_taken, subtract_list, subtracted = run_and_evaluate_method(method, samples, order, b, sampling_function, SUBTRACT_DIST)
-                    results["methods"][method_str]["time"][i, j] = time_taken
-                    results["methods"][method_str]["test_r2"][i, j, :] = subtract_list
+                    subtract_list, subtracted = run_and_evaluate_method(method, samples, order, b, sampling_function, SUBTRACT_DIST)
+                    results["methods"][method_str]["locations"][i, j, :] = subtracted
+                    results["methods"][method_str]["delta"][i, j, :] = subtract_list
                     print(
-                        f"{method_str}: {np.round(subtract_list, 3)[1:]} in {np.round(time_taken, 3)} seconds, subtracted {subtracted}")
+                        f"{method_str}: {np.round(subtract_list, 3)[1:]}, subtracted {subtracted}")
                     # print([explicand['input'][s] for s in subtracted])
             print()
         for s in active_sampler_dict.values():

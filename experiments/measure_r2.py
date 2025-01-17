@@ -15,15 +15,20 @@ from experiment_utils import linear, lasso, lime, qsft_hard, qsft_soft, faith_ba
 
 def run_and_evaluate_method(method, samples, order, b, saved_samples_test, t=5):
     start_time = time.time()
-    reconstruction = {
-        "linear": linear,
-        "lasso": lasso,
-        "lime": lime,
-        "qsft_hard": qsft_hard,
-        "qsft_soft": qsft_soft,
-        "faith_banzhaf": faith_banzhaf,
-        "faith_shapley": faith_shapley
-    }.get(method, NotImplementedError())(samples, b, order=order, t=t)
+    if method == "faith_shapley":
+        # Faith Shapley uses SHAP IQ to draw samples, and thus needs to keep track of its own start time
+        reconstruction = faith_shapley(samples.sampling_function, samples.num_samples,
+                                                   samples.n, order=order)
+    else:
+        reconstruction = {
+            "linear": linear,
+            "lasso": lasso,
+            "lime": lime,
+            "qsft_hard": qsft_hard,
+            "qsft_soft": qsft_soft,
+            "faith_banzhaf": faith_banzhaf,
+            "faith_shapley": faith_shapley
+        }.get(method, NotImplementedError())(samples, b, order=order, t=t)
     end_time = time.time()
     return end_time - start_time, estimate_r2(reconstruction, saved_samples_test)
 
@@ -34,15 +39,15 @@ SAMPLER_DICT = {
     "lasso": "uniform",
     "lime": "lime",
     "faith_banzhaf": "uniform",
-    "faith_shapley": "shapley"
+    "faith_shapley": "uniform",  # will use sampling from Shap-IQ later on
 }
 
 def main():
     # choose TASK from parkinsons, cancer, sentiment,
     # sentiment_mini, similarity, similarity_mini,
     # comprehension, comprehension_mini, clinical
-    TASK = 'sentiment'
-    DEVICE = 'cuda'
+    TASK = 'cancer'
+    DEVICE = 'cpu'
     NUM_EXPLAIN = 500
     MAX_ORDER = 4
     MAX_B = 8
@@ -59,7 +64,6 @@ def main():
     ordered_methods += [(method, 0) for method in METHODS]
 
     count_b = MAX_B - 2 if ALL_Bs else 1
-
 
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
 
@@ -85,7 +89,9 @@ def main():
         save_dir = 'samples/' + unix_time_seconds
 
         # Sample explanation function for choice of max b
+        sampling_time_start = time.time()
         qsft_signal, num_samples = sampling_strategy(sampling_function, MAX_B, n, save_dir)
+        sampling_time = time.time() - sampling_time_start
         results["samples"][i, :] = num_samples if ALL_Bs else num_samples[-1]
 
         # Draws an equal number of uniform samples
@@ -105,6 +111,9 @@ def main():
                     results["methods"][method_str]["test_r2"][i, j] = np.nan
                 else:
                     time_taken, test_r2 = run_and_evaluate_method(method, samples, order, b, saved_samples_test)
+                    if method == "faith_shapley":
+                        # SHAP-IQ doesn't specify sampling vs compute time
+                        time_taken -= sampling_time
                     results["methods"][method_str]["time"][i, j] = time_taken
                     results["methods"][method_str]["test_r2"][i, j] = test_r2
                     print(f"{method_str}: {np.round(test_r2, 3)} test r2 in {np.round(time_taken, 3)} seconds")
@@ -113,7 +122,7 @@ def main():
             del s
         shutil.rmtree(save_dir)
 
-    with open(f'{TASK}_{unix_time_seconds}.pkl', 'wb') as handle:
+    with open(f'{TASK}_faithfulness_{unix_time_seconds}.pkl', 'wb') as handle:
         pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 

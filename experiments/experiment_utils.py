@@ -3,9 +3,10 @@ from spectral_explain.qsft.qsft import fit_regression
 from spectral_explain.qsft.utils import qary_ints_low_order
 from spectral_explain.utils import mobius_to_fourier, fourier_to_mobius
 import numpy as np
-from math import comb
+import time
 import shapiq
-from shapiq.approximator.sampling import CoalitionSampler
+import warnings
+warnings.filterwarnings("ignore")
 
 def lime(signal, b, **kwargs):
     return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, 1).T}, signal, signal.n, b,
@@ -20,9 +21,21 @@ def faith_banzhaf(signal, b, order=1, **kwargs):
     return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b,
                           fourier_basis=False)[0]
 
-def faith_shapley(signal, b, order=1, **kwargs):
-    return fit_regression('shapley', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b,
-                          fourier_basis=False)[0]
+def faith_shapley(sampling_function, num_samples, n, order=1, **kwargs):
+    explainer = shapiq.Explainer(
+        model=sampling_function,
+        data=np.zeros((1,n)),
+        index="FSII",
+        max_order=order,
+    )
+    fsii = explainer.explain(np.ones((1, n)), budget=num_samples)
+    mobius_dict = {}
+    for interaction, ref in fsii.interaction_lookup.items():
+        loc = [0] * n
+        for ele in interaction:
+            loc[ele] = 1
+        mobius_dict[tuple(loc)] = fsii.values[ref]
+    return mobius_to_fourier(mobius_dict)
 
 def qsft_hard(signal, b, t=5, **kwargs):
     return support_recovery("hard", signal, b, t=t)["transform"]
@@ -38,42 +51,30 @@ def shapley(sampling_function, num_samples, n):
         index="SV",
         max_order=1
     )
-    shapley_values = explainer.explain(np.ones((1,n)), budget=num_samples)
-    print(shapley_values.values)
-    return shapley_values.values
+    shapley_values = explainer.explain(np.ones((1, n)), budget=num_samples)
+    return shapley_values.values[1:]
 
-def banzhaf(signal, b, **kwargs):
+def banzhaf(sampling_function, num_samples, n):
     # maximum sample reuse strategy from
     # Eq (5) of Data Banzhaf: https://arxiv.org/pdf/2205.15466
-    coordinates = []
-    values = []
-    for m in range(len(signal.all_samples)):
-        for d in range(len(signal.all_samples[0])):
-            for z in range(2 ** b):
-                coordinates.append(signal.all_queries[m][d][z])
-                values.append(np.real(signal.all_samples[m][d][z]))
+    coordinates = np.random.choice(2, size=(num_samples, n))
+    values = sampling_function(coordinates)
 
-    coordinates = np.array(coordinates)
-    values = np.array(values)
-
-    banzhaf_values = np.zeros(signal.n)
-    for idx in range(signal.n):
+    banzhaf_values = np.zeros(n)
+    for idx in range(n):
         mask = coordinates[:, idx] > 0.5
         banzhaf_values[idx] = (1 / np.sum(mask)) * np.sum(values[mask]) - (1 / np.sum(1 - mask)) * np.sum(
             values[1 - mask])
-    print(banzhaf_values)
-    linear_locs = qary_ints_low_order(signal.n, 2, 1).T.astype(int)[1:, :]
-    # Fourier coefficient is -2 * banzhaf value
-    return {tuple(linear_locs[i]): -2.0 * banzhaf_values[i] for i in range(signal.n)}
+
+    return banzhaf_values
 
 
 
 class Alternative_Sampler:
     def __init__(self, type, sampling_function, qsft_signal, n):
-        assert type in ["uniform", "shapley", "lime"]
+        assert type in ["uniform", "lime"]
         self.queries_finder = {
             "uniform": self.uniform_queries,
-            "shapley": self.shapley_queries,
             "lime": self.lime_queries
         }.get(type, NotImplementedError())
 
@@ -93,20 +94,10 @@ class Alternative_Sampler:
             self.all_queries.append(queries_subsample)
             self.all_samples.append(samples_subsample)
         self.num_samples = sum([len(b) for batch in self.all_samples for b in batch])
+        self.sampling_function = sampling_function
 
     def uniform_queries(self, num_samples):
         return np.random.choice(2, size=(num_samples, self.n))
-
-    def shapley_queries(self, num_samples):
-        shapley_kernel = np.array([1 / (comb(self.n, d) * d * (self.n - d)) for d in range(1, self.n)])
-        degrees = np.random.choice(range(1, self.n), size=num_samples, replace=True,
-                                   p=shapley_kernel / np.sum(shapley_kernel))
-        queries = []
-        for sample in range(num_samples):
-            q = np.zeros(self.n)
-            q[np.random.choice(range(self.n), size=degrees[sample], replace=False)] = 1
-            queries.append(q)
-        return np.array(queries)
 
     def lime_queries(self, num_samples):
         exponential_kernel = np.array([np.sqrt(np.exp(-(self.n - d) ** 2 / 25 ** 2)) for d in range(1, self.n)])
