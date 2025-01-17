@@ -102,9 +102,9 @@ def main():
                     if method in ["lime", "shapley", "faith_shapley"]:
                         # SHAP-IQ / LIME do not specify sampling vs compute time, we estimate using our sampling time
                         time_taken -= sampling_time
-                    results["methods"][method_str]["time"][i, j] = np.min(time_taken, 0)
+                    results["methods"][method_str]["time"][i, j] = np.max(time_taken, 0)
                     results["methods"][method_str]["test_r2"][i, j] = test_r2
-                    print(f"{method_str}: {np.round(test_r2, 3)} test r2 in {np.round(time_taken, 3)} seconds")
+                    print(f"{method_str}: {np.round(test_r2, 3)} test r2 in {np.round(np.max(time_taken, 0), 3)} seconds")
             print()
         for s in active_sampler_dict.values():
             del s
