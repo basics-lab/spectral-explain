@@ -17,3 +17,5 @@ review,source,n,sentiment
 """Widow hires a psychopath as a handyman. Sloppy film noir thriller which doesn't make much of its tension promising set-up. (3/10)""",IMDB,21,negative
 """Obviously written for the stage. Lightweight but worthwhile. How can you go wrong with Ralph Richardson, Olivier and Merle Oberon.""",IMDB,20,positive
 """An unfunny, unworthy picture which is an undeserving end to Peter Sellers' career. It is a pity this movie was ever made.""",IMDB,22,negative
+"""Just the labour involved in creating the layered richness of the imagery in this chiaroscuro of madness and light is astonishing.""",Stanford,21,positive
+"""The band's courage in the face of official repression is inspiring, especially for aging hippies (this one included).""",Stanford,18,positive
