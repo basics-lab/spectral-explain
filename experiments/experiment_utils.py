@@ -84,7 +84,6 @@ def shapley(signal, b, **kwargs):
         for ele in interaction:
             loc[ele] = 1
         shapley_dict[tuple(loc)] = shapley.values[ref]
-    print(shapley_dict)
     return mobius_to_fourier(shapley_dict)
 
 def banzhaf(signal, b, **kwargs):
@@ -111,12 +110,10 @@ def banzhaf(signal, b, **kwargs):
         loc = [0] * signal.n
         loc[idx] = 1
         banzhaf_dict[tuple(loc)] = banzhaf_value_idx
-    print(banzhaf_dict)
     return mobius_to_fourier(banzhaf_dict)
 
 
-
-class Alternative_Sampler:
+class AlternativeSampler:
     def __init__(self, type, sampling_function, qsft_signal, n):
         assert type in ["uniform", "dummy"]
         # dummy just needs access to n, sampling_function and num samples

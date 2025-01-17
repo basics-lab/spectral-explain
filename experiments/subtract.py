@@ -34,7 +34,7 @@ def flip_node(i, tree, all_on_sum):
         all_on_sum += 2 * coef[0]
     return tree, all_on_sum
 
-def compute_best_subtraction(transform, method, num_to_subtract=10):
+def compute_best_subtraction(transform, method, sampling_function, num_to_subtract=10):
     n = 0
     for elem in transform.keys():
         n = len(elem)
@@ -49,8 +49,8 @@ def compute_best_subtraction(transform, method, num_to_subtract=10):
         if val > 1e9:
             raise ValueError("Value too large - consider normalizing the function")
     list_of_interactions.sort(key=lambda x: len(x[0]) + 1e-9 * abs(x[1]), reverse=True)  # DANGEROUS!
+    direction = sampling_function([[1] * n]) > 0
     if method == 'greedy': # Brute force
-        direction = (eval_function([1] * n, list_of_interactions) > 0)
         mask = [1] * n
         while num_to_subtract > 0:
             best = None
@@ -90,9 +90,7 @@ def compute_best_subtraction(transform, method, num_to_subtract=10):
             num_to_subtract -= 1
             masks.append([1 if i not in subtracted else 0 for i in range(n)])
     elif method == 'linear':
-        full_sum = eval_function([1] * n, list_of_interactions)
-        direction = not (full_sum > 0)
-        list_of_interactions.sort(key=lambda x: len(x[0]) + 1e-9 * x[1], reverse=direction)  # DANGEROUS!
+        list_of_interactions.sort(key=lambda x: len(x[0]) + 1e-9 * x[1], reverse=not direction)  # DANGEROUS!
         num_to_subtract = min(num_to_subtract, len(list_of_interactions) - 1)
         i = 0
         while num_to_subtract > 0:
@@ -110,23 +108,14 @@ def compute_best_subtraction(transform, method, num_to_subtract=10):
         raise NotImplementedError()
     return masks, subtracted
 
-def subtraction_test(reconstruction, sampling_function, method, subtract_dist, ranked_coefs=False):
-    if ranked_coefs:
-        direction = 2 * (sampling_function([[1] * (len(reconstruction))]) < 0) - 1
-        subtracted = list(np.argsort(direction * reconstruction)[:subtract_dist])
-        sub_mask = []
-        for d in range(subtract_dist+1):
-            sub_mask.append([1] * (len(reconstruction)))
-            for k in range(d):
-                sub_mask[-1][subtracted[k]] = 0
-    else:
-        sub_mask, subtracted = compute_best_subtraction(reconstruction, method, subtract_dist)
+def subtraction_test(reconstruction, sampling_function, method, subtract_dist):
+    sub_mask, subtracted = compute_best_subtraction(reconstruction, method, sampling_function, subtract_dist)
     f = sampling_function(sub_mask)
     res = abs(f[0] - f) / abs(f[0])
     if len(res) < subtract_dist + 1:
         res = np.pad(res, pad_width=(0, subtract_dist + 1 - len(res)), constant_values=np.nan)
     if len(subtracted) < subtract_dist:
-        subtracted = np.pad(subtracted, pad_width=(0, subtract_dist - len(subtracted)), constant_values=np.nan)
+        subtracted = np.pad(subtracted, pad_width=(0, subtract_dist - len(subtracted)), constant_values=-1).astype(int)
     return res, subtracted
 
 def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtract_dist, t=5):
@@ -141,22 +130,22 @@ def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtra
         "shapley": shapley,
         "banzhaf": banzhaf
     }.get(method, NotImplementedError())(sampler, b, order=order, t=t)
-    ranked_coefs = False
-
-    subtraction_method = "greedy"
+    if method in ["shapley", "banzhaf", "lime"]:
+        subtraction_method = "linear"
+    else:
+        subtraction_method = "greedy"
     subtraction_list, subtracted = subtraction_test(reconstruction, sampling_function,
-                                                    subtraction_method, subtract_dist,
-                                                    ranked_coefs)
+                                                    subtraction_method, subtract_dist)
     return subtraction_list, subtracted
 
 def main():
-    TASK = 'cancer'
-    DEVICE = 'cpu'
+    TASK = 'sentiment_mini'
+    DEVICE = 'cuda'
     NUM_EXPLAIN = 10
     METHODS = ['shapley', 'banzhaf', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
     MAX_B = 8
     ALL_Bs = False
-    MAX_ORDER = 1
+    MAX_ORDER = 3
     SUBTRACT_DIST = 8
 
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
@@ -195,7 +184,7 @@ def main():
         active_sampler_dict = {"qsft": qsft_signal}
         for sampler in sampler_set:
             if sampler != "qsft":
-                active_sampler_dict[sampler] = Alternative_Sampler(sampler, sampling_function, qsft_signal, n)
+                active_sampler_dict[sampler] = AlternativeSampler(sampler, sampling_function, qsft_signal, n)
 
         for b in range(3 if ALL_Bs else MAX_B, MAX_B + 1):
             print(f"b = {b}")
@@ -203,7 +192,7 @@ def main():
             for method, order in ordered_methods:
                 method_str = f'{method}_{order}'
                 samples = active_sampler_dict[SAMPLER_DICT[method]]
-                if (order >= 2 and n >= 128) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16):
+                if (order >= 2 and n >= 64) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16):
                     results["methods"][method_str]["locations"][i, j, :] = np.nan
                     results["methods"][method_str]["delta"][i, j, :] = np.nan
                 else:
@@ -212,7 +201,7 @@ def main():
                     results["methods"][method_str]["delta"][i, j, :] = subtract_list
                     print(
                         f"{method_str}: {np.round(subtract_list, 3)[1:]}, subtracted {subtracted}")
-                    # print([explicand['input'][s] for s in subtracted])
+                    # print([explicand['input'][s] for s in subtracted if not np.isnan(s) and s >= 0] )
             print()
         for s in active_sampler_dict.values():
             del s

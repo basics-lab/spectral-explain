@@ -15,22 +15,17 @@ from experiment_utils import *
 
 def run_and_evaluate_method(method, samples, order, b, saved_samples_test, t=5):
     start_time = time.time()
-    if method == "faith_shapley":
-        # Faith Shapley uses SHAP IQ to draw samples, and thus needs to keep track of its own start time
-        reconstruction = faith_shapley(samples.sampling_function, samples.num_samples,
-                                                   samples.n, order=order)
-    else:
-        reconstruction = {
-            "linear": linear,
-            "lasso": lasso,
-            "lime": LIME,
-            "qsft_hard": qsft_hard,
-            "qsft_soft": qsft_soft,
-            "faith_banzhaf": faith_banzhaf,
-            "faith_shapley": faith_shapley,
-            "shapley": shapley,
-            "banzhaf": banzhaf
-        }.get(method, NotImplementedError())(samples, b, order=order, t=t)
+    reconstruction = {
+        "linear": linear,
+        "lasso": lasso,
+        "lime": LIME,
+        "qsft_hard": qsft_hard,
+        "qsft_soft": qsft_soft,
+        "faith_banzhaf": faith_banzhaf,
+        "faith_shapley": faith_shapley,
+        "shapley": shapley,
+        "banzhaf": banzhaf
+    }.get(method, NotImplementedError())(samples, b, order=order, t=t)
     end_time = time.time()
     return end_time - start_time, estimate_r2(reconstruction, saved_samples_test)
 
@@ -39,13 +34,13 @@ def main():
     # choose TASK from parkinsons, cancer, sentiment,
     # sentiment_mini, similarity, similarity_mini,
     # comprehension, comprehension_mini, clinical
-    TASK = 'cancer'
-    DEVICE = 'cpu'
+    TASK = 'sentiment'
+    DEVICE = 'cuda'
     NUM_EXPLAIN = 500
     MAX_ORDER = 4
     MAX_B = 8
     ALL_Bs = False
-    METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
+    METHODS = ['shapley', 'banzhaf', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
 
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
 
@@ -91,7 +86,7 @@ def main():
         active_sampler_dict = {"qsft": qsft_signal}
         for sampler in sampler_set:
             if sampler != "qsft":
-                active_sampler_dict[sampler] = Alternative_Sampler(sampler, sampling_function, qsft_signal, n)
+                active_sampler_dict[sampler] = AlternativeSampler(sampler, sampling_function, qsft_signal, n)
 
         for b in range(3 if ALL_Bs else MAX_B, MAX_B + 1):
             print(f"b = {b}")
@@ -99,15 +94,15 @@ def main():
             for method, order in ordered_methods:
                 method_str = f'{method}_{order}'
                 samples = active_sampler_dict[SAMPLER_DICT[method]]
-                if (order >= 2 and n >= 128) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16):
+                if (order >= 2 and n >= 64) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16):
                     results["methods"][method_str]["time"][i, j] = np.nan
                     results["methods"][method_str]["test_r2"][i, j] = np.nan
                 else:
                     time_taken, test_r2 = run_and_evaluate_method(method, samples, order, b, saved_samples_test)
-                    if method == "faith_shapley":
-                        # SHAP-IQ doesn't specify sampling vs compute time
+                    if method in ["lime", "shapley", "faith_shapley"]:
+                        # SHAP-IQ / LIME do not specify sampling vs compute time, we estimate using our sampling time
                         time_taken -= sampling_time
-                    results["methods"][method_str]["time"][i, j] = time_taken
+                    results["methods"][method_str]["time"][i, j] = np.min(time_taken, 0)
                     results["methods"][method_str]["test_r2"][i, j] = test_r2
                     print(f"{method_str}: {np.round(test_r2, 3)} test r2 in {np.round(time_taken, 3)} seconds")
             print()
