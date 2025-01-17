@@ -112,7 +112,7 @@ def compute_best_subtraction(transform, method, num_to_subtract=10):
 
 def subtraction_test(reconstruction, sampling_function, method, subtract_dist, ranked_coefs=False):
     if ranked_coefs:
-        direction = 2 * (sampling_function([1] * (len(reconstruction))) < 0) - 1
+        direction = 2 * (sampling_function([[1] * (len(reconstruction))]) < 0) - 1
         subtracted = list(np.argsort(direction * reconstruction)[:subtract_dist])
         sub_mask = []
         for d in range(subtract_dist+1):
@@ -125,6 +125,8 @@ def subtraction_test(reconstruction, sampling_function, method, subtract_dist, r
     res = abs(f[0] - f) / abs(f[0])
     if len(res) < subtract_dist + 1:
         res = np.pad(res, pad_width=(0, subtract_dist + 1 - len(res)), constant_values=np.nan)
+    if len(subtracted) < subtract_dist:
+        subtracted = np.pad(subtracted, pad_width=(0, subtract_dist - len(subtracted)), constant_values=np.nan)
     return res, subtracted
 
 def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtract_dist, t=5):
@@ -167,8 +169,8 @@ SAMPLER_DICT = {
 }
 
 def main():
-    TASK = 'cancer'
-    DEVICE = 'cpu'
+    TASK = 'sentiment_mini'
+    DEVICE = 'cuda'
     NUM_EXPLAIN = 10
     METHODS = ['shapley', 'banzhaf', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
     MAX_B = 8
@@ -229,7 +231,7 @@ def main():
                     results["methods"][method_str]["delta"][i, j, :] = subtract_list
                     print(
                         f"{method_str}: {np.round(subtract_list, 3)[1:]}, subtracted {subtracted}")
-                    # print([explicand['input'][s] for s in subtracted])
+                    print([explicand['input'][s] for s in subtracted])
             print()
         for s in active_sampler_dict.values():
             del s
