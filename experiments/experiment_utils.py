@@ -25,10 +25,13 @@ SAMPLER_DICT = {
 def LIME(signal, b, **kwargs):
     training_data = np.zeros((2, signal.n))
     training_data[1,:] = np.ones(signal.n)
-    lime_explainer = lime.lime_tabular.LimeTabularExplainer(training_data, mode='regression', categorical_features=range(signal.n))
+    lime_explainer = lime.lime_tabular.LimeTabularExplainer(training_data, mode='regression',
+                                                            categorical_features=range(signal.n),
+                                                            kernel_width=25)  # used in LimeTextExplainer
     lime_values = lime_explainer.explain_instance(np.ones(signal.n), signal.sampling_function,
                                                   num_samples=signal.num_samples(b),
-                                                  num_features=signal.n,)
+                                                  num_features=signal.n,
+                                                  distance_metric='cosine')  # used in LimeTextExplainer
     output = {}
     output[tuple([0] * signal.n)] = lime_values.intercept[1]
     for loc, val in lime_values.local_exp[1]:
