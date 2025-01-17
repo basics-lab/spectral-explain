@@ -125,8 +125,6 @@ class Alternative_Sampler:
             "dummy": self.dummy_queries
         }.get(type, NotImplementedError())
 
-        max_b = int(np.log2(len(qsft_signal.all_queries[0][0])))
-
         self.n = n
         self.all_queries = []
         self.all_samples = []

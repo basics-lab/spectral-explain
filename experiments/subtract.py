@@ -221,7 +221,7 @@ def main():
     for method, order in ordered_methods:
         method_str = f'{method}_{order}'
         print(method_str)
-        print(np.nanmean(results["methods"][method_str]["test_r2"][:,0,:], axis=0))
+        print(np.nanmean(results["methods"][method_str]["delta"][:,0,:], axis=0))
 
     with open(f'{TASK}_subtract.pkl', 'wb') as handle:
         pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
