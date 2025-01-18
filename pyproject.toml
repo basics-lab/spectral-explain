@@ -20,9 +20,9 @@ nltk = "^3.9.1"
 mujoco-py = "^2.1.2"
 celer = "^0.7.1"
 dill = "^0.3.8"
-bitsandbytes = "^0.42.0"
-datasets = "^2.15.0"
-accelerate = "^0.24.0"
+#bitsandbytes = "^0.42.0"
+#datasets = "^2.15.0"
+#accelerate = "^0.24.0"
 
 [tool.poetry.dev-dependencies]
 ipykernel = "*"

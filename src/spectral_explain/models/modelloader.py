@@ -13,7 +13,6 @@ from nltk.tokenize import word_tokenize, sent_tokenize
 import gc
 
 
-
 quantization_config = BitsAndBytesConfig(
 load_in_4bit=True,
 bnb_4bit_compute_dtype=torch.bfloat16,
@@ -29,28 +28,30 @@ class TextModel:
     def inference(self, X):
         raise NotImplementedError()
 
+# see bos token issue and set max new tokens length
 class QAModel:
-    def __init__(self, task, num_explain, device, seed, quantization_config = quantization_config):
+    def __init__(self, task, num_explain, device, seed, quantization_config = quantization_config, batch_size = 128):
         super().__init__()
         self.explicands = get_dataset(task, num_explain, seed)
         self.device = device
-        #quantization_config = BitsAndBytesConfig(load_in_8bit=True)
         self.model_name = self.explicands[0]['model_name']
-        self.max_new_tokens = self.explicands[0]['max_new_tokens']
-        self.batch_size = self.explicands[0]['model_batch_size']
+        self.batch_size = batch_size
 
-        self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype = torch.float16,
-                            device_map = self.device, quantization_config = quantization_config) # attn_implementation = "flash_attention_2"
+        self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, 
+                            device_map = self.device, quantization_config = quantization_config)#, attn_implementation = "flash_attention_2")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = 'left'
         self.mask_token = '<unk>'
         self.trained_model.eval()
-  
+        
 
     def set_explicand(self, explicand):
         self.explicand = explicand
         self.mask_level = explicand['mask_level']
+        answer_toks = self.tokenizer(explicand['answer'])
+        print(f'answer_toks: {answer_toks}')
+        print(f'bos_token_id: {self.tokenizer.bos_token_id}')
         self.get_original_output()
         return len(explicand['input'])
     
@@ -61,7 +62,7 @@ class QAModel:
         inputs = self.tokenizer(input_strings, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
         with torch.no_grad():
             model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], 
-                                                        length_penalty=1.0, do_sample=False, max_new_tokens=self.max_new_tokens, output_scores=True, 
+                                                        length_penalty=1.0, do_sample=True, max_new_tokens=self.max_new_tokens, output_scores=True, 
                                                         pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
         original_output_token_ids = model_outputs['sequences'][:,inputs['input_ids'].shape[1]:][0].detach().cpu().numpy().tolist()
         original_decoded_output = self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)
@@ -70,6 +71,8 @@ class QAModel:
         del model_outputs, inputs
         self.original_output_token_ids = original_output_token_ids
         self.original_decoded_output = original_decoded_output
+        self.explicand['original_answer'] = original_decoded_output
+        self.explicand['original_answer_token_ids'] = original_output_token_ids[1:]
         #return token_ids # shape is original answer tokens length
 
    
@@ -89,7 +92,7 @@ class QAModel:
             #print(batch_prompt[0])
             inputs = self.tokenizer(batch_prompt, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
             with torch.no_grad():
-                model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], do_sample=False, max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
+                model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], do_sample=True, max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
             token_probs = F.log_softmax(torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,:],dim = 1)[:,original_output_token_ids[j+1]].detach().cpu().numpy() # log probs of the next token (batch size * vocab size)
             batch_sequence_log_probs = [batch_sequence_log_probs[tok_pos] + token_probs[tok_pos] for tok_pos in range(len(batch_strings))]
            
@@ -122,9 +125,9 @@ class QAModel:
             sequence_log_probs = self.get_sequence_log_probs(batch, self.original_output_token_ids)
             outputs[count:count+len(sequence_log_probs)] = sequence_log_probs
             count += len(sequence_log_probs)
-            torch.cuda.empty_cache()
             gc.collect()
-        
+            torch.cuda.empty_cache()
+            torch.cuda.reset_max_memory_allocated()
         return outputs
 
 class Reviews:

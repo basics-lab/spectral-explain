@@ -7,7 +7,9 @@ from datasets import load_dataset
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from nltk.tokenize import sent_tokenize, word_tokenize
-from transformers import AutoTokenizer
+from collections import Counter
+
+
 def scaler_classification(X_train, X_test, y_train, y_test):
     s = StandardScaler()
     X_train = s.fit_transform(X_train)
@@ -96,8 +98,8 @@ class TextDataset:
     def __init__(self):
         self.documents = None
 
-    def retrieve(self, num_explain, mini, seed):
-        self.load(mini, seed)
+    def retrieve(self, num_explain, mini, seed, **kwargs):
+        self.load(mini, seed, **kwargs)
         if num_explain > len(self.documents):
             print(f'num_explain > test set size. Explaining all {len(self.documents)} test samples instead.')
             num_explain = len(self.documents)
@@ -122,27 +124,32 @@ class HotpotQA(TextDataset):
             if not (sample['answer'] == 'yes' or sample['answer'] == 'no'):
                 continue
             all_sentences = []
+            title_to_context = {sample['context']['title'][i]: sample['context']['sentences'][i] for i in range(len(sample['context']['title']))} # dictionary of title to context
+            sent_to_loc = {}
             for par in sample['context']['sentences']:
                 for sent in par:
                     all_sentences.append(sent)
-            documents.append({'original': sample['context']['sentences'], 'input': all_sentences, 'locations': sample['supporting_facts']['sent_id'], 'question': sample['question'], 'answer': sample['answer']})
+            sent_to_loc = {sent: i for i, sent in enumerate(all_sentences)}
+            question = f"Question: {sample['question']}. Only answer with yes or no."
+            answer = sample['answer']
+            documents.append({'original': original, 'input': context_words, 'locations': None, 'question': question, 'answer': answer, 'mask_level': 'sentence'
+                              ,'max_new_tokens': 1,'model_name': 'meta-llama/Llama-3.2-1B-Instruct','model_batch_size': 128,'id': sample['query_id']})
         self.documents = documents
 
+#limited max length and changed answer selection length
 class Drop(TextDataset):
     """Drop dataset"""
 
     def __init__(self):
         super().__init__()
-        self.name = 'DROP_BENCHMARK'
+        self.name = 'DROP'
         self.task = None
         self.split = 'validation'
         self.mask_level = 'word'
-        self.model_name = 'meta-llama/Llama-3.2-1B-Instruct'
-        self.max_new_tokens = 1
+        self.max_answer_length = 1
         self.model_batch_size = 128
 
-    def load(self,mini, seed):
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+    def load(self,mini, seed, max_length = 200):
         self.documents = None
         dataset = load_dataset('drop', name = self.task, split = self.split)
         dataset = dataset.shuffle(seed = seed)
@@ -155,12 +162,23 @@ class Drop(TextDataset):
                 context_words = sent_tokenize(sample['passage'])
             else:
                 raise ValueError(f'Invalid mask level: {self.mask_level}')
+            if len(context_words) > max_length:
+                continue
             original = sample['passage']
             question = f"{sample['question']}. Provide shortest answer possible, long answers are penalized heavily."
-            answer = sample['answers_spans']['spans'][0] #Assume first answer is correct
-            answer_toks = tokenizer(answer,return_tensors = 'pt')['input_ids'][0,1:]
-            if answer_toks.shape[0] > self.max_new_tokens:
+            answer_list = sample['answers_spans']['spans']
+            
+
+
+            answer_counts = Counter(answer_list)
+            max_count = max(answer_counts.values())
+            most_frequent_answers = [ans for ans, count in answer_counts.items() if count == max_count]
+            answer = most_frequent_answers[0]  # Choose the first one in case of a tie
+            answer_length = len(answer.split(' '))
+            if answer_length > self.max_answer_length:
                 continue
+
+            
             cursor = 0
             substring = sample['passage']
             locations = []
@@ -168,8 +186,9 @@ class Drop(TextDataset):
                 loc = substring[cursor:].find(w)
                 locations.append((cursor + loc, cursor + loc + len(w)))
                 cursor += loc + len(w)
-            documents.append({'original': original, 'input': context_words, 'locations': locations, 'question': question, 'answer': answer, 'mask_level': self.mask_level
-                              ,'max_new_tokens': self.max_new_tokens,'model_name': self.model_name,'model_batch_size': self.model_batch_size,'id': sample['query_id']})
+            documents.append({'original': original, 'input': context_words, 'locations': locations, 
+                              'question': question, 'answer': answer, 'n': len(context_words),
+                              'mask_level': self.mask_level, 'id': sample['query_id']})
         self.documents = documents
 
 class CNN(TextDataset):
@@ -184,7 +203,7 @@ class CNN(TextDataset):
         self.max_new_tokens = 8
         #self.model_name = 'meta-llama/Llama-3.2-1B-Instruct'
         #self.model_name = 'HuggingFaceTB/SmolLM-135M'
-        self.model_batch_size = 1024
+        self.model_batch_size = 128
     def load(self, mini, seed):
         self.documents = None
         dataset = load_dataset('cnn_dailymail',name = self.task, split = self.split)
@@ -257,7 +276,7 @@ class Reviews(TextDataset):
             self.documents.append({'original': document, 'input': filtered_sentence, 'locations': locations})
 
 
-def get_dataset(dataset, num_explain, seed = 42):
+def get_dataset(dataset, num_explain, seed = 42, **kwargs):
     mini = "mini" in dataset
     return {
         "parkinsons": Parkinsons,
@@ -266,7 +285,7 @@ def get_dataset(dataset, num_explain, seed = 42):
         "sentiment_mini": Reviews,
         "drop": Drop,
         "cnn": CNN,
-    }.get(dataset, NotImplementedError())().retrieve(num_explain, mini, seed)
+    }.get(dataset, NotImplementedError())().retrieve(num_explain, mini, seed, **kwargs)
 
 
 
