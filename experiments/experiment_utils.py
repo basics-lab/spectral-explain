@@ -9,6 +9,7 @@ from math import comb
 import torch
 import gc
 import shapiq
+from copy import copy
 from tqdm import tqdm
 import lime.lime_tabular
 import os, pandas as pd
@@ -25,8 +26,8 @@ SAMPLER_DICT = {
     "lasso": "uniform",
     "lime": "lime",
     "faith_banzhaf": "uniform",
-    "faith_shapley": "shapley",
-    "shapley": "shapley",
+    #"faith_shapley": "shapley",
+    #"shapley": "shapley",
     "banzhaf": "uniform"
 }
 METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley'] #'faith_banzhaf'
@@ -36,60 +37,69 @@ SAMPLING_SET = set(SAMPLER_DICT.values())
 
 
 # returns a shapley explainer object
-def shapley_sampling(qsft_signal, order, b, **kwargs):
+def shapley_sampling(sampling_function, qsft_signal, order, b, **kwargs):
     explainer = shapiq.Explainer(
-        model=qsft_signal.sampling_function,
+        model=sampling_function,
         data=np.zeros((1,qsft_signal.n)),
         index="FSII",
         max_order=order,
     )
-    fsii = explainer.explain(np.ones((1, qsft_signal.n)), budget=b)
+    num_samples = get_num_samples(qsft_signal, b)
+    print(num_samples)
+    fsii = explainer.explain(np.ones((1, qsft_signal.n)), budget=num_samples)
     flush()
     return fsii
 
 # returns a lime explainer object
-def lime_sampling(qsft_signal, b, **kwargs):
+def lime_sampling(sampling_function, qsft_signal, b, **kwargs):
+    print(qsft_signal.n)
     training_data = np.zeros((2, qsft_signal.n))
     training_data[1,:] = np.ones(qsft_signal.n)
+    num_samples = get_num_samples(qsft_signal, b)
+    print(num_samples)
     lime_explainer = lime.lime_tabular.LimeTabularExplainer(training_data, mode='regression',
                                                             categorical_features=range(qsft_signal.n),
                                                             kernel_width=25)  # used in LimeTextExplainer
-    lime_values = lime_explainer.explain_instance(np.ones(qsft_signal.n), qsft_signal.sampling_function,
-                                                  num_samples=qsft_signal.num_samples(b),
+    lime_values = lime_explainer.explain_instance(np.ones(qsft_signal.n), sampling_function,
+                                                  num_samples=num_samples,
                                                   num_features=qsft_signal.n,
                                                   distance_metric='cosine')  # used in LimeTextExplainer
     flush()
     return lime_values
 
 # Returns uniform queries  
-def uniform_sampling(qsft_signal, b, **kwargs):
-    queries = np.random.choice(2, size=(qsft_signal.num_samples(b), qsft_signal.n))
-    samples = qsft_signal.sampling_function(queries)
+def uniform_sampling(sampling_function, qsft_signal,b, **kwargs):
+    num_samples = get_num_samples(qsft_signal, b)
+    queries = np.random.choice(2, size=(num_samples, qsft_signal.n))
+    samples = sampling_function(queries)
     flush()
     return queries, samples
 
-def assign_sampler(sampling_mechanism, qsft_signal = None, order = None, b = None):
-    if sampling_mechanism == 'shapley':
-        return shapley_sampling(qsft_signal, order, b)
-    elif sampling_mechanism == 'lime':
-        return lime_sampling(qsft_signal, b)
-    elif sampling_mechanism == 'uniform':
-        return uniform_sampling(qsft_signal, b)
+def assign_sampler(sampling_type,sampling_function, qsft_signal = None, order = None, b = None):
+    if sampling_type == 'shapley':
+        return shapley_sampling(sampling_function, qsft_signal, order, b)
+    elif sampling_type == 'lime':
+        return lime_sampling(sampling_function, qsft_signal, b)
+    elif sampling_type == 'uniform':
+        return uniform_sampling(sampling_function, qsft_signal, b)
     else:
-        raise NotImplementedError(f"Sampling mechanism {sampling_mechanism} not implemented")
+        raise NotImplementedError(f"Sampling mechanism {sampling_type} not implemented")
 
 # runs sampling and saves signals 
 # If a signal is already saved, it loads it 
-def run_sampling(explicand, sampling_function, b = 3, n = 128, sampling_set = SAMPLING_SET, 
+def run_sampling(model, explicand, sampling_function, b = 3, sampling_set = SAMPLING_SET, 
                 save_dir = None, order = 1,num_test_samples = 10000, verbose = True, **kwargs):
 
     if verbose:
         print(f"Running sampling for explicand {explicand}")
     # Save explicand information 
+    explicand_info = copy(explicand)
+    n = len(explicand['input'])
     os.makedirs(save_dir, exist_ok=True)
     with open(f'{save_dir}/explicand_information.pickle', 'wb') as handle:
-        pickle.dump(explicand, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(explicand_info, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+    signals = {}
     # Get test samples 
     if not os.path.exists(f'{save_dir}/test_samples.parquet'):
         test_queries = np.random.choice(2, size=(num_test_samples, n))
@@ -102,12 +112,12 @@ def run_sampling(explicand, sampling_function, b = 3, n = 128, sampling_set = SA
         test_df = pd.read_parquet(f'{save_dir}/test_samples.parquet')
         test_queries = test_df.drop(columns=['target']).values
         test_samples = test_df['target'].values
-        signal['test_queries'] = test_queries
-        signal['test_samples'] = test_samples
+        signals['test_queries'] = test_queries
+        signals['test_samples'] = test_samples
 
     # get qsft signal 
     qsft_signal, num_samples = sampling_strategy(sampling_function, b, n, save_dir) 
-    signals = {}
+    signals['qsft_signal'] = qsft_signal
     flush()
 
     # compute other sampling methods 
@@ -119,7 +129,7 @@ def run_sampling(explicand, sampling_function, b = 3, n = 128, sampling_set = SA
                 with open(f'{save_dir}/{sampler}_{b}_signal.pickle', 'rb') as handle:
                     signal = pickle.load(handle)
             else:
-                signal = assign_sampler(sampler, qsft_signal, order, b)
+                signal = assign_sampler(sampler, sampling_function, qsft_signal, order, b)
                 with open(f'{save_dir}/{sampler}_{b}_signal.pickle', 'wb') as handle:
                     pickle.dump(signal, handle, protocol=pickle.HIGHEST_PROTOCOL)
             signals[sampler] = signal

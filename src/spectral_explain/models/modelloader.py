@@ -1,12 +1,10 @@
 import numpy as np
 from sklearn.neural_network import MLPRegressor, MLPClassifier
-from transformers import pipeline
-from transformers import LongformerTokenizer, LongformerForMultipleChoice
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModel
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 import torch.nn.functional as F
 import torch
 from tqdm import tqdm
-from copy import deepcopy, copy
+from copy import copy
 from spectral_explain.dataloader import get_dataset
 from transformers import BitsAndBytesConfig
 from nltk.tokenize import word_tokenize, sent_tokenize
@@ -19,6 +17,11 @@ bnb_4bit_compute_dtype=torch.bfloat16,
 bnb_4bit_quant_type="nf4",
 bnb_4bit_use_double_quant=True)
 
+def flush():
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.reset_max_memory_allocated()
+
 class TextModel:
     """Class for any model."""
 
@@ -30,15 +33,14 @@ class TextModel:
 
 # see bos token issue and set max new tokens length
 class QAModel:
-    def __init__(self, task, num_explain, device, seed, quantization_config = quantization_config, batch_size = 128):
+    def __init__(self, device = 'auto', use_flash_attn = False, model_name = 'meta-llama/Llama-3.2-1B-Instruct', quantization_config = quantization_config, batch_size = 128):
         super().__init__()
-        self.explicands = get_dataset(task, num_explain, seed)
         self.device = device
-        self.model_name = self.explicands[0]['model_name']
         self.batch_size = batch_size
-
+        self.model_name = model_name
         self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, 
-                            device_map = self.device, quantization_config = quantization_config)#, attn_implementation = "flash_attention_2")
+                            device_map = self.device, quantization_config = quantization_config, 
+                            attn_implementation = 'flash_attention_2' if use_flash_attn else None)#, attn_implementation = "flash_attention_2")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = 'left'
@@ -49,20 +51,19 @@ class QAModel:
     def set_explicand(self, explicand):
         self.explicand = explicand
         self.mask_level = explicand['mask_level']
-        answer_toks = self.tokenizer(explicand['answer'])
-        print(f'answer_toks: {answer_toks}')
-        print(f'bos_token_id: {self.tokenizer.bos_token_id}')
-        self.get_original_output()
+        model_answer_toks = self.tokenizer(explicand['answer'])['input_ids'][1:]
+        self.max_new_tokens = len(model_answer_toks)
+        self.get_original_output(max_new_tokens = self.max_new_tokens)
         return len(explicand['input'])
     
 
-    def get_original_output(self):
+    def get_original_output(self, max_new_tokens):
         #input_strings = [self.explicand['original']]
         input_strings = [f"Context: {self.explicand['original']}\nQuestion: {self.explicand['question']}\nAnswer: "]
         inputs = self.tokenizer(input_strings, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
         with torch.no_grad():
             model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], 
-                                                        length_penalty=1.0, do_sample=True, max_new_tokens=self.max_new_tokens, output_scores=True, 
+                                                        length_penalty=1.0, do_sample=True, max_new_tokens= self.max_new_tokens, output_scores=True, 
                                                         pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
         original_output_token_ids = model_outputs['sequences'][:,inputs['input_ids'].shape[1]:][0].detach().cpu().numpy().tolist()
         original_decoded_output = self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)
@@ -71,8 +72,8 @@ class QAModel:
         del model_outputs, inputs
         self.original_output_token_ids = original_output_token_ids
         self.original_decoded_output = original_decoded_output
-        self.explicand['original_answer'] = original_decoded_output
-        self.explicand['original_answer_token_ids'] = original_output_token_ids[1:]
+        self.explicand['model_answer'] = original_decoded_output
+        self.explicand['model_answer_token_ids'] = original_output_token_ids[1:]
         #return token_ids # shape is original answer tokens length
 
    
@@ -93,12 +94,19 @@ class QAModel:
             inputs = self.tokenizer(batch_prompt, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
             with torch.no_grad():
                 model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], do_sample=True, max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
-            token_probs = F.log_softmax(torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,:],dim = 1)[:,original_output_token_ids[j+1]].detach().cpu().numpy() # log probs of the next token (batch size * vocab size)
-            batch_sequence_log_probs = [batch_sequence_log_probs[tok_pos] + token_probs[tok_pos] for tok_pos in range(len(batch_strings))]
+            batch_token_probs = torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,:] # batch size * vocab size
+            batch_token_probs = torch.clamp(batch_token_probs, min = 1e-6, max = 1.0 - 1e-6)
+            batch_token_log_probs = F.log_softmax(batch_token_probs,dim = 1)[:,original_output_token_ids[j+1]].detach().cpu().numpy()
+            batch_sequence_log_probs = [batch_sequence_log_probs[idx] + batch_token_log_probs[idx] for idx in range(len(batch_strings))]
+            # token_probs = torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,original_output_token_ids[j+1]].detach().cpu().numpy()
+            # print(token_probs.shape) # batch size * vocab size
+            # token_probs = F.log_softmax(torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,:],dim = 1)[:,original_output_token_ids[j+1]].detach().cpu().numpy() # log probs of the next token (batch size * vocab size)
+            # batch_sequence_log_probs = [batch_sequence_log_probs[tok_pos] + token_probs[tok_pos] for tok_pos in range(len(batch_strings))]
            
-            del model_outputs, inputs
+            del model_outputs, inputs, batch_prompt, batch_token_probs, batch_token_log_probs
+            flush()
 
-        batch_sequence_log_probs = np.array(batch_sequence_log_probs) * (-1.0/self.max_new_tokens) # log perplexity
+        batch_sequence_log_probs = np.array(batch_sequence_log_probs)
         return batch_sequence_log_probs
   
     def inference(self, X):
@@ -125,10 +133,9 @@ class QAModel:
             sequence_log_probs = self.get_sequence_log_probs(batch, self.original_output_token_ids)
             outputs[count:count+len(sequence_log_probs)] = sequence_log_probs
             count += len(sequence_log_probs)
-            gc.collect()
-            torch.cuda.empty_cache()
-            torch.cuda.reset_max_memory_allocated()
-        return outputs
+            flush()
+
+        return np.array(outputs)
 
 class Reviews:
     def __init__(self, task, num_explain, device, seed):
