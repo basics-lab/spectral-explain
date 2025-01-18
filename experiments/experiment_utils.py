@@ -19,25 +19,24 @@ warnings.filterwarnings("ignore")
 # def lime(signal, b, **kwargs):
 #     return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, 1).T}, signal, signal.n, b)[0]
 
-SAMPLER_DICT = {
-    "qsft_hard": "qsft",
-    "qsft_soft": "qsft",
-    "linear": "uniform",
-    "lasso": "uniform",
-    "lime": "lime",
-    "faith_banzhaf": "uniform",
-    #"faith_shapley": "shapley",
-    #"shapley": "shapley",
-    "banzhaf": "uniform"
-}
-METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley'] #'faith_banzhaf'
-SAMPLING_SET = set(SAMPLER_DICT.values())
+SAMPLING_SET = ['qsft', 'uniform', 'lime', 'shapley'] #shapley, faith_shapley
 
 # Sampling methods 
 
+def shapley_sampling(sampling_function, qsft_signal, b, **kwargs):
+    explainer = shapiq.Explainer(
+        model= sampling_function,
+        data=np.zeros((1,qsft_signal.n)),
+        index="SV",
+        max_order=1
+    )
+    shapley = explainer.explain(np.ones((1, qsft_signal.n)), budget=get_num_samples(qsft_signal, b))
+    flush()
+    return shapley
+
 
 # returns a shapley explainer object
-def shapley_sampling(sampling_function, qsft_signal, order, b, **kwargs):
+def faith_shapley_sampling(sampling_function, qsft_signal, order, b, **kwargs):
     explainer = shapiq.Explainer(
         model=sampling_function,
         data=np.zeros((1,qsft_signal.n)),
@@ -76,8 +75,10 @@ def uniform_sampling(sampling_function, qsft_signal,b, **kwargs):
     return queries, samples
 
 def assign_sampler(sampling_type,sampling_function, qsft_signal = None, order = None, b = None):
-    if sampling_type == 'shapley':
-        return shapley_sampling(sampling_function, qsft_signal, order, b)
+    if sampling_type == 'faith_shapley':
+        return faith_shapley_sampling(sampling_function, qsft_signal, order, b)
+    elif sampling_type == 'shapley':
+        return shapley_sampling(sampling_function, qsft_signal, b)
     elif sampling_type == 'lime':
         return lime_sampling(sampling_function, qsft_signal, b)
     elif sampling_type == 'uniform':
@@ -87,7 +88,7 @@ def assign_sampler(sampling_type,sampling_function, qsft_signal = None, order = 
 
 # runs sampling and saves signals 
 # If a signal is already saved, it loads it 
-def run_sampling(model, explicand, sampling_function, b = 3, sampling_set = SAMPLING_SET, 
+def run_sampling(model, explicand, sampling_function, b = 3, sampling_set = SAMPLING_SET, faith_shapley_limit = 32,
                 save_dir = None, order = 1,num_test_samples = 10000, verbose = True, **kwargs):
 
     if verbose:
@@ -122,6 +123,7 @@ def run_sampling(model, explicand, sampling_function, b = 3, sampling_set = SAMP
 
     # compute other sampling methods 
     for sampler in tqdm(sampling_set):
+
         if sampler == 'qsft':
             continue
         else:
@@ -129,7 +131,11 @@ def run_sampling(model, explicand, sampling_function, b = 3, sampling_set = SAMP
                 with open(f'{save_dir}/{sampler}_{b}_signal.pickle', 'rb') as handle:
                     signal = pickle.load(handle)
             else:
-                signal = assign_sampler(sampler, sampling_function, qsft_signal, order, b)
+                if sampler == 'faith_shapley' and n >= faith_shapley_limit:
+                    print(f"Skipping faith_shapley for explicand {explicand} because n >= {faith_shapley_limit}")
+                    signal = None
+                else:
+                    signal = assign_sampler(sampler, sampling_function, qsft_signal, order, b)
                 with open(f'{save_dir}/{sampler}_{b}_signal.pickle', 'wb') as handle:
                     pickle.dump(signal, handle, protocol=pickle.HIGHEST_PROTOCOL)
             signals[sampler] = signal

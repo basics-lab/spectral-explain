@@ -35,16 +35,15 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default='cuda:0')
     parser.add_argument("--task", type=str, default='drop')
-    parser.add_argument("--num_explain", type=int, default=1)
-    parser.add_argument("--MAX_B", type=int, default=3)
+    parser.add_argument("--MAX_B", type=int, default=8)
     parser.add_argument("--MIN_B", type=int, default=3)
     parser.add_argument("--MAX_ORDER", type=int, default=4)
     parser.add_argument("--num_test_samples", type=int, default=100)
-    parser.add_argument("--use_cache", type=bool, default=True)
     parser.add_argument("--run_sampling", type=bool, default=False)
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--verbose", type=bool, default=True)
     args = parser.parse_args()
-    main(seed=args.seed, device=args.device, task=args.task, num_explain=args.num_explain, 
-        MAX_B=args.MAX_B, MIN_B=args.MIN_B, MAX_ORDER=args.MAX_ORDER, num_test_samples=args.num_test_samples, 
-        batch_size=args.batch_size, verbose=args.verbose)
+    main(seed=args.seed, device=args.device, task=args.task, num_explain=1, 
+        MAX_B=args.MAX_B, MIN_B=args.MIN_B, MAX_ORDER=args.MAX_ORDER, 
+        num_test_samples=args.num_test_samples, batch_size=args.batch_size, 
+        verbose=args.verbose)

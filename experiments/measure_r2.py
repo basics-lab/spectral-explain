@@ -14,7 +14,52 @@ from experiment_utils import linear, lasso, lime, qsft_hard, qsft_soft, faith_ba
 import torch
 from math import comb
 
-os.environ['HF_HOME'] = f'/scratch/users/{os.getenv("USER")}/'
+
+SAVE_DIR = f'experiments/results/'
+METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley', 'faith_banzhaf']
+SAMPLER_DICT = {
+    "qsft_hard": "qsft",
+    "qsft_soft": "qsft",
+    "linear": "uniform",
+    "lasso": "uniform",
+    "lime": "lime",
+    "faith_banzhaf": "uniform",
+    "faith_shapley": "faith_shapley",
+    "shapley": "shapley",
+    "banzhaf": "uniform"
+}
+def main(task, MAX_ORDER):
+
+
+    pass
+
+if __name__ == "__main__":
+    print("Starting main function")
+    profiler = cProfile.Profile()
+    profiler.enable()
+    numba.set_num_threads(8)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=12)
+    parser.add_argument("--device", type=str, default='cuda:0')
+    parser.add_argument("--task", type=str, default='drop')
+    parser.add_argument("--MAX_B", type=int, default=8)
+    parser.add_argument("--MIN_B", type=int, default=8)
+    parser.add_argument("--MAX_ORDER", type=int, default=4)
+    parser.add_argument("--NUM_EXPLAIN", type=int, default=25)
+    parser.add_argument("--num_test_samples", type=int, default=10000)
+    parser.add_argument("--use_cache", type=bool, default=True)
+    parser.add_argument("--run_sampling", type=bool, default=False)
+    parser.add_argument("--batch_size", type=int, default=512)
+    
+    
+    # parser.add_argument("--ALL_Bs", type=bool, default=False)
+    # args = parser.parse_args()
+    # main(args.task, args.seed, args.device, args.MAX_B, args.MAX_ORDER, args.NUM_EXPLAIN, 
+    #      args.num_test_samples, args.batch_size, args.use_cache, args.run_sampling, args.ALL_Bs)
+    
+ 
+
+
 
 
 
@@ -125,35 +170,6 @@ os.environ['HF_HOME'] = f'/scratch/users/{os.getenv("USER")}/'
 # sentiment_mini, similarity, similarity_mini,
 # comprehension, comprehension_mini, clinical
 # context_cite (HotpotQA, DROP)
-if __name__ == "__main__":
-    print("Starting main function")
-    profiler = cProfile.Profile()
-    profiler.enable()
-    numba.set_num_threads(8)
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=12)
-    parser.add_argument("--device", type=str, default='cuda:0')
-    parser.add_argument("--task", type=str, default='drop')
-    parser.add_argument("--MAX_B", type=int, default=8)
-    parser.add_argument("--MIN_B", type=int, default=8)
-    parser.add_argument("--MAX_ORDER", type=int, default=4)
-    parser.add_argument("--NUM_EXPLAIN", type=int, default=25)
-    parser.add_argument("--num_test_samples", type=int, default=10000)
-    parser.add_argument("--use_cache", type=bool, default=True)
-    parser.add_argument("--run_sampling", type=bool, default=False)
-    parser.add_argument("--batch_size", type=int, default=512)
-    
-    
-    # parser.add_argument("--ALL_Bs", type=bool, default=False)
-    # args = parser.parse_args()
-    # main(args.task, args.seed, args.device, args.MAX_B, args.MAX_ORDER, args.NUM_EXPLAIN, 
-    #      args.num_test_samples, args.batch_size, args.use_cache, args.run_sampling, args.ALL_Bs)
-    
- 
-
-
-
-
 
         
 # def collect_data(explicand, model, TASK, num_test_samples, USE_CACHE, MAX_B):

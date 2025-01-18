@@ -3,7 +3,7 @@ samples/
 experiments/results/
 *.log
 .ipynb_checkpoints/
-
+logs/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

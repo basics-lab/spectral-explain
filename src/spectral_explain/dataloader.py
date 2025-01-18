@@ -149,7 +149,7 @@ class Drop(TextDataset):
         self.max_answer_length = 1
         self.model_batch_size = 128
 
-    def load(self,mini, seed, max_length = 50):
+    def load(self,mini, seed, max_length = 250):
         self.documents = None
         dataset = load_dataset('drop', name = self.task, split = self.split)
         dataset = dataset.shuffle(seed = seed)
