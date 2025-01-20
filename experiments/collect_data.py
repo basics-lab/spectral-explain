@@ -5,7 +5,7 @@ from spectral_explain.models.modelloader import QAModel
 from spectral_explain.dataloader import get_dataset
 from experiment_utils import run_sampling, get_and_evaluate_reconstruction
 
-SAVE_DIR = 'experiments/results'
+SAVE_DIR = '/scratch/users/aa3797/results'
 
 def main(seed=12, device='cuda:0', task='drop', MAX_B=8, MIN_B=8, MAX_ORDER=4, 
     num_explain=1, num_test_samples=10000, t = 5, batch_size=512, verbose=True):
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     print("Starting main function")
     profiler = cProfile.Profile()
     profiler.enable()
-    numba.set_num_threads(8)
+    numba.set_num_threads(2)
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default='cuda:0')
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument("--MAX_ORDER", type=int, default=4)
     parser.add_argument("--num_test_samples", type=int, default=100)
     parser.add_argument("--run_sampling", type=bool, default=False)
-    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=1024)
     parser.add_argument("--verbose", type=bool, default=True)
     parser.add_argument("--t", type=int, default=5)
     args = parser.parse_args()

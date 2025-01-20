@@ -16,8 +16,8 @@ def run_job(job_id, batch_size):
     error_file = f"experiments/logs/{args.task}/job_{job_id}_error.txt"   # Error file for the job
     print(f"Starting Job {job_id} on GPU {device_id}: {command}")
     with open(output_file, 'w') as outfile, open(error_file, 'w') as errfile:
-        #result = subprocess.run(command, shell=True, text=True, stdout=outfile, stderr=errfile)
-        result = subprocess.run(command, shell=True, text=True, stdout=None, stderr=None)
+        result = subprocess.run(command, shell=True, text=True, stdout=outfile, stderr=errfile)
+        #result = subprocess.run(command, shell=True, text=True, stdout=None, stderr=None)
 
     print(f"Finished Job {job_id} with return code {result.returncode}")
     return result.returncode
@@ -38,21 +38,21 @@ def process_completed_jobs(done, futures, job_ids):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_explain", type=int, default=2)
+    parser.add_argument("--num_explain", type=int, default=56)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--task", type=str, default='drop')
     parser.add_argument("--MAX_B", type=int, default=8)
     parser.add_argument("--MIN_B", type=int, default=3)
     parser.add_argument("--MAX_ORDER", type=int, default=4)
     parser.add_argument("--num_test_samples", type=int, default=10000)
-    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=1024)
     parser.add_argument("--verbose", type=bool, default=True)
     parser.add_argument("--t", type=int, default=5)
     args = parser.parse_args()
     num_jobs = args.num_explain
     successfully_completed = 0
     job_ids = deque([(i + args.seed, args.batch_size) for i in range(args.num_explain)])
-    num_workers = 2 #torch.cuda.device_count()
+    num_workers = torch.cuda.device_count()
 
 
 

@@ -24,7 +24,7 @@ warnings.filterwarnings("ignore")
 
 SAMPLING_SET = ['qsft', 'uniform', 'lime', 'shapley'] #shapley, faith_shapley
 #METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']#, 'faith_banzhaf']
-METHODS = ['linear', 'lime', 'qsft_hard', 'qsft_soft', 'banzhaf', 'faith_banzhaf', 'shapley'] #'faith_shapley']
+METHODS = ['linear','lasso', 'lime', 'qsft_hard', 'qsft_soft', 'banzhaf', 'faith_banzhaf', 'shapley'] #'faith_shapley']
 SAMPLING_TO_METHOD = {'uniform': 'linear', 'uniform': 'lasso', 'shapley': 'shapley','shapley': 'faith_shapley', 
                       'lime': 'LIME', 'qsft': 'qsft_hard', 'qsft': 'qsft_soft', 'faith_shapley': 'faith_shapley', 'uniform': 'faith_banzhaf'}
 METHOD_TO_SAMPLING = {'linear': 'uniform', 'lasso': 'uniform', 'shapley': 'shapley','faith_shapley': 'shapley', 
@@ -346,6 +346,8 @@ def get_and_evaluate_reconstruction(task, explicand, b = 8, sampling_set = SAMPL
         r2 = estimate_r2(reconstruction, test_samples)
         print(f'{method} reconstruction finished in {time.time() - time_start} seconds with r2 score {r2}')
         r2_results[method] = r2
+    with open(f'{save_dir}/r2_results.pickle', 'wb') as handle:
+        pickle.dump(r2_results, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         
     #return all_reconstructions
