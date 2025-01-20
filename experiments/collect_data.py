@@ -1,18 +1,17 @@
 import numba
 import numpy as np
-import pandas as pd
-from tqdm import tqdm
-import os, shutil, cProfile, pstats, gc, argparse
-from spectral_explain.models.modelloader import QAModel, TextModel
+import cProfile, argparse
+from spectral_explain.models.modelloader import QAModel
 from spectral_explain.dataloader import get_dataset
-from experiment_utils import run_sampling
+from experiment_utils import run_sampling, get_and_evaluate_reconstruction
 
 SAVE_DIR = 'experiments/results'
 
 def main(seed=12, device='cuda:0', task='drop', MAX_B=8, MIN_B=8, MAX_ORDER=4, 
-    num_explain=1, num_test_samples=10000, batch_size=512, verbose=True):
+    num_explain=1, num_test_samples=10000, t = 5, batch_size=512, verbose=True):
     print("Loading model and explicands")
     explicands = get_dataset(task, num_explain = num_explain, seed = seed)
+    print(f"Finished loading explicands")
     model = QAModel(device = device)
     model.batch_size = batch_size
     print("Finished loading model and explicands")
@@ -24,6 +23,7 @@ def main(seed=12, device='cuda:0', task='drop', MAX_B=8, MIN_B=8, MAX_ORDER=4,
         save_dir = f'{SAVE_DIR}/{task}/{sample_id}'
         run_sampling(model=model, explicand=explicand, sampling_function=sampling_function, b = MAX_B, n = n, save_dir = save_dir, 
                      order = MAX_ORDER, num_test_samples = num_test_samples, verbose = verbose)
+        get_and_evaluate_reconstruction(task = task, explicand = explicand, b = MAX_B, max_order = MAX_ORDER, save_dir = save_dir, t = t)
         
 
 if __name__ == "__main__":
@@ -40,10 +40,11 @@ if __name__ == "__main__":
     parser.add_argument("--MAX_ORDER", type=int, default=4)
     parser.add_argument("--num_test_samples", type=int, default=100)
     parser.add_argument("--run_sampling", type=bool, default=False)
-    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--verbose", type=bool, default=True)
+    parser.add_argument("--t", type=int, default=5)
     args = parser.parse_args()
     main(seed=args.seed, device=args.device, task=args.task, num_explain=1, 
         MAX_B=args.MAX_B, MIN_B=args.MIN_B, MAX_ORDER=args.MAX_ORDER, 
         num_test_samples=args.num_test_samples, batch_size=args.batch_size, 
-        verbose=args.verbose)
+        t = args.t, verbose=args.verbose)

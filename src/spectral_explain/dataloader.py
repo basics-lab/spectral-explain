@@ -7,6 +7,7 @@ from datasets import load_dataset
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from nltk.tokenize import sent_tokenize, word_tokenize
+from transformers import AutoTokenizer
 from collections import Counter
 
 
@@ -147,13 +148,14 @@ class Drop(TextDataset):
         self.split = 'validation'
         self.mask_level = 'word'
         self.max_answer_length = 1
-        self.model_batch_size = 128
+        #self.model_batch_size = 128
 
-    def load(self,mini, seed, max_length = 250):
+    def load(self,mini, seed, max_length = 200):
         self.documents = None
         dataset = load_dataset('drop', name = self.task, split = self.split)
         dataset = dataset.shuffle(seed = seed)
         documents = []
+        tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B-Instruct')
         
         for sample in dataset:
             if self.mask_level == 'word':
@@ -174,9 +176,13 @@ class Drop(TextDataset):
             max_count = max(answer_counts.values())
             most_frequent_answers = [ans for ans, count in answer_counts.items() if count == max_count]
             answer = most_frequent_answers[0]  # Choose the first one in case of a tie
-            answer_length = len(answer.split(' '))
-            if answer_length > self.max_answer_length:
+            answer_token_ids = tokenizer(answer, return_tensors='pt').input_ids[0,1:].tolist()
+            if len(answer_token_ids) > self.max_answer_length:
                 continue
+           
+            #answer_length = len(answer.split(' '))
+            #if answer_length > self.max_answer_length:
+            #    continue
 
             
             cursor = 0
@@ -189,6 +195,7 @@ class Drop(TextDataset):
             documents.append({'original': original, 'input': context_words, 'locations': locations, 
                               'question': question, 'answer': answer, 'n': len(context_words),
                               'mask_level': self.mask_level, 'id': sample['query_id']})
+        del tokenizer, dataset
         self.documents = documents
 
 class CNN(TextDataset):

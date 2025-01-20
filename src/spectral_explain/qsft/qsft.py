@@ -7,7 +7,7 @@ from .reconstruct import singleton_detection
 from .input_signal_subsampled import SubsampledSignal
 from .utils import qary_vec_to_dec, sort_qary_vecs, calc_hamming_weight, dec_to_qary_vec, qary_ints_low_order
 import logging
-from sklearn.linear_model import LinearRegression, OrthogonalMatchingPursuit
+from sklearn.linear_model import LinearRegression, OrthogonalMatchingPursuit, RidgeCV
 from sklearn.model_selection import GridSearchCV
 from functools import partial
 import random
@@ -398,7 +398,7 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=
         X[:, 0] = 1
 
     if type == 'linear':
-        reg = LinearRegression(fit_intercept=False).fit(X, values)
+        reg = RidgeCV(fit_intercept=False,alphas = np.logspace(-3, 3, 100)).fit(X, values) #LinearRegression(fit_intercept=False).fit(X, values)
         coefs = reg.coef_
     elif type == 'lasso':
         reg = LassoCV(fit_intercept=False, n_alphas=10).fit(X, values)

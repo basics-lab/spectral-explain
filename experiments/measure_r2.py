@@ -1,37 +1,62 @@
 import numba
 import numpy as np
-import time
-import copy
 import pandas as pd
 from tqdm import tqdm
 import dill as pickle
-import shapiq
 import os, shutil, cProfile, pstats, gc, argparse
 from spectral_explain.models.modelloader import get_model
 from spectral_explain.support_recovery import sampling_strategy, get_num_samples
 from spectral_explain.utils import estimate_r2
-from experiment_utils import linear, lasso, lime, qsft_hard, qsft_soft, faith_banzhaf, faith_shapley, BatchedAlternative_Sampler, get_and_save_samples, get_methods, flush
-import torch
+from experiment_utils import get_and_evaluate_reconstruction
 from math import comb
 
 
 SAVE_DIR = f'experiments/results/'
-METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley', 'faith_banzhaf']
-SAMPLER_DICT = {
-    "qsft_hard": "qsft",
-    "qsft_soft": "qsft",
-    "linear": "uniform",
-    "lasso": "uniform",
-    "lime": "lime",
-    "faith_banzhaf": "uniform",
-    "faith_shapley": "faith_shapley",
-    "shapley": "shapley",
-    "banzhaf": "uniform"
-}
-def main(task, MAX_ORDER):
+# METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley', 'faith_banzhaf']
+# SAMPLER_DICT = {
+#     "qsft_hard": "qsft",
+#     "qsft_soft": "qsft",
+#     "linear": "uniform",
+#     "lasso": "uniform",
+#     "lime": "lime",
+#     "faith_banzhaf": "uniform",
+#     "faith_shapley": "faith_shapley",
+#     "shapley": "shapley",
+#     "banzhaf": "uniform"
+# }
+#     # plan: 
+#     # 
 
-
+def measure_r2(task, MAX_ORDER):
     pass
+
+
+def main(task = 'drop', max_order = 4, b = 8, save_dir = 'experiments/results'):
+    save_dir = f'{save_dir}/{task}'
+    count = 0
+    for file in os.listdir(save_dir):
+        print(file)
+        file_dir =  f'{save_dir}/{file}'
+        explicand_info = f'{file_dir}/explicand_information.pickle'
+        with open(explicand_info, 'rb') as handle:
+            explicand = pickle.load(handle)
+        try: 
+            get_and_evaluate_reconstruction(task = task, explicand = explicand, b = b, max_order = max_order)
+            count += 1
+        except Exception as e:
+            print(e)
+            
+
+    # ordered_methods = get_methods(METHODS, MAX_ORDER)
+    # r2_results = {}
+
+    # # iterate through files in save_dir
+    # for file in os.listdir(save_dir):
+    #     if file.endswith('.pkl'):
+    #         explicand = pickle.load(open(os.path.join(save_dir, file), 'rb'))
+    #         print(explicand)
+
+    # pass
 
 if __name__ == "__main__":
     print("Starting main function")
@@ -39,18 +64,13 @@ if __name__ == "__main__":
     profiler.enable()
     numba.set_num_threads(8)
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=12)
-    parser.add_argument("--device", type=str, default='cuda:0')
     parser.add_argument("--task", type=str, default='drop')
     parser.add_argument("--MAX_B", type=int, default=8)
     parser.add_argument("--MIN_B", type=int, default=8)
     parser.add_argument("--MAX_ORDER", type=int, default=4)
-    parser.add_argument("--NUM_EXPLAIN", type=int, default=25)
-    parser.add_argument("--num_test_samples", type=int, default=10000)
-    parser.add_argument("--use_cache", type=bool, default=True)
-    parser.add_argument("--run_sampling", type=bool, default=False)
-    parser.add_argument("--batch_size", type=int, default=512)
     
+    args = parser.parse_args()
+    main(task = args.task, max_order = args.MAX_ORDER, b = args.MAX_B, save_dir = SAVE_DIR)
     
     # parser.add_argument("--ALL_Bs", type=bool, default=False)
     # args = parser.parse_args()

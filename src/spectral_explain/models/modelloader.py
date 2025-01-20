@@ -63,7 +63,7 @@ class QAModel:
         inputs = self.tokenizer(input_strings, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
         with torch.no_grad():
             model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], 
-                                                        length_penalty=1.0, do_sample=True, max_new_tokens= self.max_new_tokens, output_scores=True, 
+                                                        length_penalty=1.0, do_sample=False, max_new_tokens= self.max_new_tokens, output_scores=True, 
                                                         pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
         original_output_token_ids = model_outputs['sequences'][:,inputs['input_ids'].shape[1]:][0].detach().cpu().numpy().tolist()
         original_decoded_output = self.tokenizer.decode(original_output_token_ids, skip_special_tokens=False,clean_up_tokenization_spaces=True)
@@ -93,7 +93,7 @@ class QAModel:
             #print(batch_prompt[0])
             inputs = self.tokenizer(batch_prompt, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
             with torch.no_grad():
-                model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], do_sample=True, max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
+                model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], do_sample= False, max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
             batch_token_probs = torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,:] # batch size * vocab size
             batch_token_probs = torch.clamp(batch_token_probs, min = 1e-6, max = 1.0 - 1e-6)
             batch_token_log_probs = F.log_softmax(batch_token_probs,dim = 1)[:,original_output_token_ids[j+1]].detach().cpu().numpy()

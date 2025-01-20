@@ -429,3 +429,12 @@ def plot_spectrum(signal, sparse_recovery_results, fourier_spectrum_dir, n):
     plt.tight_layout()
     plt.savefig(fourier_spectrum_dir + '/sparsity_faithfulness.png', dpi=300)
     plt.clf()
+
+
+
+class L0CV:
+    def __init__(self, CV = 5):
+        self.CV = CV
+
+    def fit(self, X, y):
+        pass

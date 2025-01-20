@@ -1,13 +1,16 @@
 from spectral_explain.support_recovery import support_recovery
 from spectral_explain.qsft.qsft import fit_regression
 from spectral_explain.qsft.utils import qary_ints_low_order
-from spectral_explain.utils import mobius_to_fourier, fourier_to_mobius
+from spectral_explain.utils import mobius_to_fourier, estimate_r2
 from spectral_explain.support_recovery import sampling_strategy, get_num_samples
 import numpy as np
+import copy
+from copy import deepcopy
 import dill as pickle
 from math import comb
 import torch
 import gc
+import time
 import shapiq
 from copy import copy
 from tqdm import tqdm
@@ -20,7 +23,13 @@ warnings.filterwarnings("ignore")
 #     return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, 1).T}, signal, signal.n, b)[0]
 
 SAMPLING_SET = ['qsft', 'uniform', 'lime', 'shapley'] #shapley, faith_shapley
-
+#METHODS = ['linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']#, 'faith_banzhaf']
+METHODS = ['linear', 'lime', 'qsft_hard', 'qsft_soft', 'banzhaf', 'faith_banzhaf', 'shapley'] #'faith_shapley']
+SAMPLING_TO_METHOD = {'uniform': 'linear', 'uniform': 'lasso', 'shapley': 'shapley','shapley': 'faith_shapley', 
+                      'lime': 'LIME', 'qsft': 'qsft_hard', 'qsft': 'qsft_soft', 'faith_shapley': 'faith_shapley', 'uniform': 'faith_banzhaf'}
+METHOD_TO_SAMPLING = {'linear': 'uniform', 'lasso': 'uniform', 'shapley': 'shapley','faith_shapley': 'shapley', 
+                      'lime': 'lime', 'qsft_hard': 'qsft', 'qsft_soft': 'qsft', 'faith_banzhaf': 'uniform'}
+ORDER_LIMITS = {0: 1e10, 1: 1e10, 2: 64, 3: 32, 4: 32 }
 # Sampling methods 
 
 def shapley_sampling(sampling_function, qsft_signal, b, **kwargs):
@@ -146,9 +155,8 @@ def run_sampling(model, explicand, sampling_function, b = 3, sampling_set = SAMP
 
 
 
-
-
 # Reconstruction methods 
+
 
 def linear(signal, b, order=1, **kwargs):
     return fit_regression('linear', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b)[0]
@@ -160,17 +168,28 @@ def faith_banzhaf(signal, b, order=1, **kwargs):
     return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b,
                           fourier_basis=False)[0]
 
-def LIME(lime_values, qsft_signal, **kwargs):
+def LIME(signal, n, **kwargs):
     output = {}
-    output[tuple([0] * qsft_signal.n)] = lime_values.intercept[1]
-    for loc, val in lime_values.local_exp[1]:
-        ohe_loc = [0] * qsft_signal.n
+    output[tuple([0] * n)] = signal.intercept[1]
+    for loc, val in signal.local_exp[1]:
+        ohe_loc = [0] * n
         ohe_loc[loc] = 1
         output[tuple(ohe_loc)] = val
     return mobius_to_fourier(output)
 
 
 def faith_shapley(shapiq_explainer,n,  **kwargs):
+    
+    mobius_dict = {}
+    for interaction, ref in shapiq_explainer.interaction_lookup.items():
+        loc = [0] * n
+        for ele in interaction:
+            loc[ele] = 1
+        mobius_dict[tuple(loc)] = shapiq_explainer.values[ref]
+    return mobius_to_fourier(mobius_dict)
+
+
+def shapley(shapiq_explainer,n,  **kwargs):
     
     mobius_dict = {}
     for interaction, ref in shapiq_explainer.interaction_lookup.items():
@@ -206,129 +225,136 @@ def banzhaf(uniform_signal, b, **kwargs):
         banzhaf_dict[tuple(loc)] = banzhaf_value_idx
     return mobius_to_fourier(banzhaf_dict)
 
+class UniformSampler:
+    def __init__(self, qsft_signal, uniform_signal):
+        self.n = qsft_signal.n
+        uniform_queries, uniform_samples = uniform_signal
+        self.all_queries = []
+        self.all_samples = []
+        count = 0
+        for m in range(len(qsft_signal.all_samples)):
+            queries_subsample = []
+            series_subsample = []
+            for d in range(len(qsft_signal.all_samples[0])):
+                queries = uniform_queries[count: count + len(qsft_signal.all_queries[m][d]),:]
+                samples = uniform_samples[count: count + len(qsft_signal.all_samples[m][d])]
+                queries_subsample.append(queries)
+                series_subsample.append(samples)
+                count += len(qsft_signal.all_queries[m][d])
+            self.all_queries.append(queries_subsample)
+            self.all_samples.append(series_subsample)
 
-
-
-
-# Other utilities
-def get_methods(method_list,max_order):
-    ordered_methods = []
-    for regression in ['linear', 'lasso', 'faith_banzhaf', 'faith_shapley']:
-        if regression in method_list:
-            ordered_methods += [(regression, order) for order in range(1, max_order + 1)]
-            method_list.remove(regression)
-    ordered_methods += [(method, 0) for method in method_list]
-    return ordered_methods
 
     #return signal.sampling_function(np.random.choice(2, size=(b, signal.n)))
+
+def _get_methods(methods,max_order):
+        method_list = deepcopy(methods)
+        ordered_methods = []
+        for regression in ['linear', 'lasso', 'faith_banzhaf']:
+            if regression in method_list:
+                ordered_methods += [(regression, order) for order in range(1, max_order + 1)]
+                method_list.remove(regression)
+        ordered_methods += [(method, 0) for method in method_list]
+        return ordered_methods
+
+def _get_signal(sampling_type, b, n, save_dir):
+        if sampling_type == 'qsft':
+            return sampling_strategy(lambda X: 1.0, b, n, save_dir) [0]
+        else:
+            with open(f'{save_dir}/{sampling_type}_{b}_signal.pickle', 'rb') as handle:
+                print(f'Loading {sampling_type} signal')
+                signal = pickle.load(handle)            
+                return signal
+
+def _get_reconstruction(method, signal, order, b, n, t=5):
+        start_time = time.time()
+        reconstruction = {
+            "linear": linear,
+            "lasso": lasso,
+            "lime": LIME,
+            "qsft_hard": qsft_hard,
+            "qsft_soft": qsft_soft,
+            "banzhaf": banzhaf,
+            "faith_banzhaf": faith_banzhaf,
+            "faith_shapley": faith_shapley,
+            "shapley": shapley
+        }.get(method, NotImplementedError())(signal = signal, b = b, order=order, t=t, n = n)
+        end_time = time.time()
+        return reconstruction
+ 
 
 def flush(): 
     gc.collect()
     torch.cuda.empty_cache()
     torch.cuda.reset_max_memory_allocated()
     
+def get_and_evaluate_reconstruction(task, explicand, b = 8, sampling_set = SAMPLING_SET, 
+                   save_dir = 'experiments/results', max_order = 4, t = 5, **kwargs):
+   
+
+    save_dir = f'{save_dir}/{task}/{explicand["id"]}'
+    n = len(explicand['input'])
+    os.makedirs(save_dir, exist_ok=True)
 
 
 
+    test_samples = pd.read_parquet(f'{save_dir}/test_samples.parquet')
+    test_samples = test_samples.drop(columns=['target']).values, test_samples['target'].values
+    signal_dict = {}
 
-# def get_and_save_samples(sampling_function, type = 'test', num_test_samples = 10000, n = 128, save_dir = None, use_cache = True, qsft_signal = None):
-#     assert type in ['test','uniform', 'shapley', 'lime']
+    print('loaded test samples')
+    # Run reconstruction 
+    #print(get_methods(METHODS, max_order))
+    method_list = _get_methods(METHODS, max_order)
+    r2_results = {}
+
+    print(f'Methods to run: {method_list}')
+    for ordered_method in method_list:
+        method, order = ordered_method
+        time_start = time.time()
+        print(method, order)
+        print(f'Running {method} reconstruction')
+        if method in ['shapley', 'faith_shapley', 'lime']:
+            if METHOD_TO_SAMPLING[method] not in signal_dict:
+                signal_dict[METHOD_TO_SAMPLING[method]] = _get_signal(sampling_type = METHOD_TO_SAMPLING[method], b = b, n = n, save_dir = save_dir)
+            signal = signal_dict[METHOD_TO_SAMPLING[method]]
+            #all_reconstructions[method] = _get_reconstruction(method = method, signal = signal, order = order, b = b, t = t)
+        elif method in ['qsft_hard', 'qsft_soft']:
+            signal = _get_signal(sampling_type = 'qsft', b = b, n = n, save_dir = save_dir)
+            signal_dict['qsft'] = signal
+            #all_reconstructions[method] = _get_reconstruction(method = method, signal = signal, b = b, order = order, t = t)
+        elif method in ['linear', 'lasso', 'faith_banzhaf','banzhaf']:
+            if 'qsft' not in signal_dict:
+                signal_dict['qsft'] = _get_signal(sampling_type = 'qsft', b = b, n = n, save_dir = save_dir)
+            if 'uniform' not in signal_dict:
+                signal_dict['uniform'] = _get_signal(sampling_type = 'uniform', b = b, n = n, save_dir = save_dir)
+           
+            signal = UniformSampler(signal_dict['qsft'], signal_dict['uniform'])
     
-#     if type == 'test':
-#         if use_cache and os.path.exists(f'{save_dir}/test_samples.parquet'):
-#             try: 
-#                 test_df = pd.read_parquet(f'{save_dir}/test_samples.parquet')
-#                 test_labels = test_df['target'].values
-#                 test_queries = test_df.drop(columns=['target']).values
-#                 saved_samples_test = test_queries, test_labels
-#                 return saved_samples_test
-#             except Exception as e:
-#                 print(f"Error reading test samples: {e}")
-#                 os.remove(f'{save_dir}/test_samples.parquet')
-#                 return get_and_save_samples(sampling_function, type = 'test', num_test_samples = num_test_samples, n = n, save_dir = save_dir, use_cache = False, qsft_signal = None)
-#         else:
-#             os.makedirs(save_dir, exist_ok=True)
-#             query_indices_test = np.random.choice(2, size=(num_test_samples, n))
-#             saved_samples_test = query_indices_test, sampling_function(query_indices_test)
-#             test_queries_pd = pd.DataFrame(query_indices_test, columns = [f'loc_{i}' for i in range(n)])
-#             test_queries_pd['target'] = saved_samples_test[1]
-#             test_queries_pd.to_parquet(f'{save_dir}/test_samples.parquet')
-#             return saved_samples_test
-#     else:
-#         if use_cache and os.path.exists(f'{save_dir}/{type}_signal.pickle'):
-#             try:
-#                 with open(f'{save_dir}/{type}_signal.pickle', 'rb') as handle:
-#                     signal = pickle.load(handle)
-#                 return signal
-#             except Exception as e:
-#                 print(f"Error reading {type} signal: {e}")
-#                 os.remove(f'{save_dir}/{type}_signal.pickle')
-#                 return get_and_save_samples(sampling_function, type = type, num_test_samples = num_test_samples, n = n, save_dir = save_dir, use_cache = False, qsft_signal = qsft_signal)
-#         else:
-#             os.makedirs(save_dir, exist_ok=True)
-#             signal = BatchedAlternative_Sampler(type, sampling_function, qsft_signal, n)
-#             with open(f'{save_dir}/{type}_signal.pickle', 'wb') as handle:
-#                 pickle.dump(signal, handle, protocol=pickle.HIGHEST_PROTOCOL)
-#             return signal
+        if (n >= 64 and order >= 2) or (n >= 32 and order >= 3) or (n >= 16 and order >= 4):
+            pass
+        else:
+            reconstruction = _get_reconstruction(method = method, signal = signal, b = b, order = order, n = n, t = t)
+            r2 = estimate_r2(reconstruction, test_samples)
+            print(f'{method} reconstruction finished in {time.time() - time_start} seconds with r2 score {r2}')
+            r2_results[method] = r2
+
+        
+    #return all_reconstructions
 
 
 
 
 
-# class BatchedAlternative_Sampler:
-#     def __init__(self, type, sampling_function, qsft_signal, n):
-#         assert type in ["uniform", "shapley", "lime"]
-#         self.queries_finder = {
-#             "uniform": self.uniform_queries,
-#             "shapley": self.shapley_queries,
-#             "lime": self.lime_queries
-#         }.get(type, NotImplementedError())
-#         self.n = n
-#         self.all_queries = []
-#         self.all_samples = []
-#         self.query_type = type
-#         for m in range(len(qsft_signal.all_samples)):
-#             queries_subsample = []
-#             for d in range(len(qsft_signal.all_samples[0])):
-#                 queries = self.queries_finder(len(qsft_signal.all_queries[m][d]))
-#                 if type == "shapley" and m == 0 and d == 0:
-#                     queries[0, :] = np.zeros(n)
-#                     queries[1, :] = np.ones(n)
-#                 queries_subsample.append(queries)
-#             self.all_queries.append(queries_subsample)
-#         query_matrix = np.concatenate([np.concatenate(queries_subsample, axis=0) for queries_subsample in self.all_queries], axis=0)
-#         samples = sampling_function(query_matrix)
-#         #self.flattened_queries = query_matrix
-#         #self.flattened_samples = samples
-#         count = 0
-#         for queries_subsample in self.all_queries: # list of numpy arrays
-#             samples_subsample = []
-#             for query in queries_subsample:
-#                 samples_subsample.append(samples[count: count + len(query)])
-#                 count += len(query)
-#             self.all_samples.append(samples_subsample)
 
-#     def uniform_queries(self, num_samples):
-#         return np.random.choice(2, size=(num_samples, self.n))
+      #if check_order_limit(order, n):
+            #    all_reconstructions[method] = _get_reconstruction(method = method, signal = unif_signal, b = b, order = order, t = t)
+            #else:
+            #    all_reconstructions[method] = None
+        # Save the reconstruction to a file
+        # end_time = time.time()
+        # print(f'Finished {method} reconstruction in {end_time - time_start} seconds')
 
-#     def shapley_queries(self, num_samples):
-#         shapley_kernel = np.array([1 / (comb(self.n, d) * d * (self.n - d)) for d in range(1, self.n)])
-#         degrees = np.random.choice(range(1, self.n), size=num_samples, replace=True,
-#                                    p=shapley_kernel / np.sum(shapley_kernel))
-#         queries = []
-#         for sample in range(num_samples):
-#             q = np.zeros(self.n)
-#             q[np.random.choice(range(self.n), size=degrees[sample], replace=False)] = 1
-#             queries.append(q)
-#         return np.array(queries)
-
-#     def lime_queries(self, num_samples):
-#         exponential_kernel = np.array([np.sqrt(np.exp(-(self.n - d) ** 2 / 25 ** 2)) for d in range(1, self.n)])
-#         degrees = np.random.choice(range(1, self.n), size=num_samples, replace=True,
-#                                    p=exponential_kernel / np.sum(exponential_kernel))
-#         queries = []
-#         for sample in range(num_samples):
-#             q = np.zeros(self.n)
-#             q[np.random.choice(range(self.n), size=degrees[sample], replace=False)] = 1
-#             queries.append(q)
-#         return np.array(queries)
+        # with open(f'{save_dir}/reconstruction_{b}.pickle', 'wb') as handle:
+        #     pickle.dump(all_reconstructions, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        #break
