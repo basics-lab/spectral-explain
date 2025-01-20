@@ -128,7 +128,8 @@ def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtra
         "faith_banzhaf": faith_banzhaf,
         "faith_shapley": faith_shapley,
         "shapley": shapley,
-        "banzhaf": banzhaf
+        "banzhaf": banzhaf,
+        "shapley_taylor": shapley_taylor
     }.get(method, NotImplementedError())(sampler, b, order=order, t=t)
     if method in ["shapley", "banzhaf", "lime"]:
         subtraction_method = "linear"
@@ -142,7 +143,7 @@ def main():
     TASK = 'sentiment_mini'
     DEVICE = 'cuda'
     NUM_EXPLAIN = 10
-    METHODS = ['shapley', 'banzhaf', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
+    METHODS = ['shapley', 'banzhaf', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley', 'shapley_taylor']
     MAX_B = 8
     ALL_Bs = False
     MAX_ORDER = 3

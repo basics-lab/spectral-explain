@@ -19,7 +19,8 @@ SAMPLER_DICT = {
     "faith_banzhaf": "uniform",
     "faith_shapley": "dummy",  # will use sampling from Shap-IQ later on
     "shapley": "dummy",  # will use sampling from Shap-IQ later on
-    "banzhaf": "uniform"
+    "banzhaf": "uniform",
+    "shapley_taylor": "dummy"
 }
 
 def LIME(signal, b, **kwargs):
@@ -65,6 +66,22 @@ def faith_shapley(signal, b, order=1, **kwargs):
             loc[ele] = 1
         fsii_dict[tuple(loc)] = fsii.values[ref]
     return mobius_to_fourier(fsii_dict)
+
+def shapley_taylor(signal, b, order=1, **kwargs):
+    explainer = shapiq.Explainer(
+        model=signal.sampling_function,
+        data=np.zeros((1,signal.n)),
+        index="STII",
+        max_order=order,
+    )
+    stii = explainer.explain(np.ones((1, signal.n)), budget=signal.num_samples(b))
+    stii_dict = {}
+    for interaction, ref in stii.interaction_lookup.items():
+        loc = [0] * signal.n
+        for ele in interaction:
+            loc[ele] = 1
+        stii_dict[tuple(loc)] = stii.values[ref]
+    return mobius_to_fourier(stii_dict)
 
 def qsft_hard(signal, b, t=5, **kwargs):
     return support_recovery("hard", signal, b, t=t)["transform"]

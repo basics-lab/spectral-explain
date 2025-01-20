@@ -23,6 +23,7 @@ def run_and_evaluate_method(method, samples, order, b, saved_samples_test, t=5):
         "qsft_soft": qsft_soft,
         "faith_banzhaf": faith_banzhaf,
         "faith_shapley": faith_shapley,
+        "shapley_taylor": shapley_taylor,
         "shapley": shapley,
         "banzhaf": banzhaf
     }.get(method, NotImplementedError())(samples, b, order=order, t=t)
@@ -40,7 +41,7 @@ def main():
     MAX_ORDER = 1
     MAX_B = 8
     ALL_Bs = False
-    METHODS = ['shapley', 'banzhaf', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley']
+    METHODS = ['shapley', 'banzhaf', 'linear', 'lasso', 'lime', 'qsft_hard', 'qsft_soft', 'faith_shapley', 'shapley_taylor']
 
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
 
