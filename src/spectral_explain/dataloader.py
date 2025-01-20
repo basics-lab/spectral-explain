@@ -103,8 +103,9 @@ class TextDataset:
 
 
 class Reviews(TextDataset):
-    """120 movie reviews
+    """160 movie reviews from
     https://www.kaggle.com/datasets/lakshmi25npathi/imdb-dataset-of-50k-movie-reviews?resource=download
+    https://nlp.stanford.edu/sentiment/
     """
 
     def __init__(self):
@@ -132,6 +133,37 @@ class Reviews(TextDataset):
                 cursor += loc + len(w)
             self.documents.append({'original': document, 'input': filtered_sentence, 'locations': locations})
 
+class Riddles(TextDataset):
+    """10 'fake' riddles from
+    https://github.com/autogenai/easy-problems-that-llms-get-wrong
+    https://arxiv.org/abs/2405.19616
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.name = 'Riddles'
+
+    def load(self, mini):
+        self.documents = []
+        filename = 'data/riddles.csv'
+
+        riddles = pd.read_csv(filename)
+        contexts = []
+        for r in riddles['context']:
+            contexts.append(r)
+
+
+        for context, question in tqdm(zip(contexts, riddles['question'])):
+            split_context = context.split()
+            locations = []
+            substring = context
+            cursor = 0
+            for w in split_context:
+                loc = substring[cursor:].find(w)
+                locations.append((cursor + loc, cursor + loc + len(w)))
+                cursor += loc + len(w)
+            self.documents.append({'original': context, 'input': split_context, 'locations': locations, 'question': question})
+
 
 def get_dataset(dataset, num_explain):
     mini = "mini" in dataset
@@ -140,4 +172,5 @@ def get_dataset(dataset, num_explain):
         "cancer": Cancer,
         "sentiment": Reviews,
         "sentiment_mini": Reviews,
+        "riddles": Riddles
     }.get(dataset, NotImplementedError())().retrieve(num_explain, mini)

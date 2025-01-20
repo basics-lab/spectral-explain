@@ -7,6 +7,8 @@ import torch.nn.functional as F
 import torch
 from tqdm import tqdm
 from spectral_explain.dataloader import get_dataset
+from openai import OpenAI
+import os
 
 
 class TextModel:
@@ -64,6 +66,67 @@ class Reviews:
                 pos_logits[i] = outputs[i][1]['score']
         return pos_logits
 
+class Riddles:
+    def __init__(self, task, num_explain, device):
+        super().__init__()
+        self.explicands = get_dataset(task, num_explain)
+        self.device = device
+        self.mask_token = '[UNK]'
+        assert os.environ.get("OPENAI_API_KEY"), "set openai api key as environment variable under OPENAI_API_KEY"
+        self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+    def set_explicand(self, explicand):
+        self.explicand = explicand
+        self.question = explicand['question']
+        self.context = explicand['input']
+        return len(explicand['input'])
+
+    def inference(self, X):
+        logprob_diffs = np.zeros(len(X))
+        for i, sample in enumerate(X):
+            masked_context = []
+            for j, s in enumerate(sample):
+                if s == 1:
+                    masked_context.append(self.context[j])
+                else:
+                    masked_context.append("[UNK]")
+
+            output = self.client.chat.completions.create(
+                messages=[
+                        {
+                            "role": "system", "content":
+                            "Answer with the one word True or False only. Any other answer will be marked incorrect."
+                        },
+                        {
+                            "role": "user", "content": " ".join(masked_context) + "\n" + self.question,
+                        },
+                    ],
+                model="gpt-4o-mini-2024-07-18",
+                logprobs=True,
+                max_completion_tokens=1,
+                top_logprobs=20
+            )
+
+            top_logprobs = output.choices[0].logprobs.content[0].top_logprobs
+            true_logprob = None
+            false_logprob = None
+            for logprob in top_logprobs:
+                if logprob.token == "True":
+                    true_logprob = logprob.logprob
+                elif logprob.token == "False":
+                    false_logprob = logprob.logprob
+
+            # using logprob =-100 if True/False not in the top 20
+            if true_logprob is None and false_logprob is None:
+                logprob_diffs[i] = 0
+            elif true_logprob is None:
+                logprob_diffs[i] = -100 - false_logprob
+            elif false_logprob is None:
+                logprob_diffs[i] = true_logprob - (-100)
+            else:
+                logprob_diffs[i] = true_logprob - false_logprob
+        return logprob_diffs
+
 class TabularModel:
     """Class for any model."""
 
@@ -119,6 +182,7 @@ def get_model(task, num_explain=10, device=None):
         "cancer": MLPClassification,
         "sentiment": Reviews,
         "sentiment_mini": Reviews,
+        "riddles": Riddles
     }.get(task, NotImplementedError())(task, num_explain, device)
 
     return model.explicands, model
