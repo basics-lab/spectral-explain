@@ -137,6 +137,48 @@ class QAModel:
 
         return np.array(outputs)
 
+
+class HotPotQAModel(QAModel):
+    def __init__(self, device = 'auto', use_flash_attn = True, model_name = 'meta-llama/Llama-3.2-1B-Instruct', quantization_config = quantization_config, batch_size = 128):
+        super().__init__(device, use_flash_attn, model_name, quantization_config, batch_size)
+    
+    def create_prompt(self, all_sentences):
+        titles = self.explicand['titles']
+        title_to_sent_id = self.explicand['title_to_sent_id']
+        prompt = ""
+        for i in range(len(titles)):
+            prompt += f"Title: {titles[i]} \n Context:"
+            for sent_id in title_to_sent_id[titles[i]]:
+                prompt += f"{all_sentences[sent_id]}"
+            prompt += "\n"
+        prompt += f"Question: {self.explicand['question']} \nAnswer: "
+        return prompt
+
+    def inference(self, X):
+        # X is the masking pattern
+        input_strings = []
+        outputs = [0.0] * len(X)
+       
+        for index in X:
+            input = copy(self.explicand['input'])
+            for i, sent in enumerate(input):
+                if index[i] == 0:
+                    input[i] = self.mask_token
+            
+            input_strings.append(self.create_prompt(input))
+            #input_strings.append(' '.join(input))
+        
+        
+        count = 0
+        for i in tqdm(range(0, len(input_strings), self.batch_size)):
+            batch = input_strings[i:i+self.batch_size]
+            sequence_log_probs = self.get_sequence_log_probs(batch, self.original_output_token_ids)
+            outputs[count:count+len(sequence_log_probs)] = sequence_log_probs
+            count += len(sequence_log_probs)
+            flush()
+
+        return np.array(outputs)
+
 class Reviews:
     def __init__(self, task, num_explain, device, seed):
         super().__init__()

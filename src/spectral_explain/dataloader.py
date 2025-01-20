@@ -107,35 +107,6 @@ class TextDataset:
         return self.documents[:num_explain]
     
 
-class HotpotQA(TextDataset):
-    """HotpotQA dataset"""
-
-    def __init__(self):
-        super().__init__()
-        self.name = 'hotpotqa'
-        self.task = 'distractor'
-        self.split = 'validation'
-
-    def load(self, mini, seed):
-        self.documents = None
-        dataset = load_dataset('hotpot_qa', self.task, self.split)
-        dataset = dataset.shuffle(seed = seed)
-        documents = []
-        for sample in dataset:
-            if not (sample['answer'] == 'yes' or sample['answer'] == 'no'):
-                continue
-            all_sentences = []
-            title_to_context = {sample['context']['title'][i]: sample['context']['sentences'][i] for i in range(len(sample['context']['title']))} # dictionary of title to context
-            sent_to_loc = {}
-            for par in sample['context']['sentences']:
-                for sent in par:
-                    all_sentences.append(sent)
-            sent_to_loc = {sent: i for i, sent in enumerate(all_sentences)}
-            question = f"Question: {sample['question']}. Only answer with yes or no."
-            answer = sample['answer']
-            documents.append({'original': original, 'input': context_words, 'locations': None, 'question': question, 'answer': answer, 'mask_level': 'sentence'
-                              ,'max_new_tokens': 1,'model_name': 'meta-llama/Llama-3.2-1B-Instruct','model_batch_size': 128,'id': sample['query_id']})
-        self.documents = documents
 
 #limited max length and changed answer selection length
 class Drop(TextDataset):
@@ -234,23 +205,23 @@ class CNN(TextDataset):
             documents.append({'original': original, 'input': context_words, 'locations': locations, 'question': question, 'mask_level': self.mask_level, 'max_new_tokens': self.max_new_tokens,'model_name': self.model_name,'model_batch_size': self.model_batch_size})
         self.documents = documents
 
-class HotpotQA(TextDataset):
-    """HotpotQA dataset"""
+# class HotpotQA(TextDataset):
+#     """HotpotQA dataset"""
 
-    def __init__(self):
-        super().__init__()
-        self.name = 'hotpotqa'
-        self.task = 'distractor'
-        self.split = 'validation'
-        self.mask_level = 'sentence'
+#     def __init__(self):
+#         super().__init__()
+#         self.name = 'hotpotqa'
+#         self.task = 'distractor'
+#         self.split = 'validation'
+#         self.mask_level = 'sentence'
     
-    def load(self, mini, seed):
-        self.documents = None
-        dataset = load_dataset('hotpot_qa', self.task, self.split)
-        dataset = dataset.shuffle(seed = seed)
-        documents = []
-        for sample in dataset:
-            pass
+#     def load(self, mini, seed):
+#         self.documents = None
+#         dataset = load_dataset('hotpot_qa', self.task, self.split)
+#         dataset = dataset.shuffle(seed = seed)
+#         documents = []
+#         for sample in dataset:
+#             pass
 
 class Reviews(TextDataset):
     """120 movie reviews
@@ -281,6 +252,80 @@ class Reviews(TextDataset):
                 locations.append((cursor + loc, cursor + loc + len(w)))
                 cursor += loc + len(w)
             self.documents.append({'original': document, 'input': filtered_sentence, 'locations': locations})
+
+
+
+class HotpotQA(TextDataset):
+    """HotpotQA dataset"""
+
+    def __init__(self):
+        super().__init__()
+        self.name = 'hotpotqa'
+        self.task = 'distractor'
+        self.split = 'validation'
+        self.mask_level = 'sentence'
+
+    def load(self, seed = 42, **kwargs):
+        print("Loading HotpotQA dataset")
+        self.documents = []
+        dataset = load_dataset('hotpot_qa', self.task, self.split)[self.split]
+        for sample in dataset:
+            sample_id = sample['id']
+            question = f'Question: {sample["question"]}. Only answer with yes or no.'
+            answer = sample['answer']
+            if (answer != 'yes') and (answer != 'no'):
+                continue
+            
+            # Flatted list of all sentences, and their locations 
+            all_sentences = [sent for par in sample['context']['sentences'] for sent in par]
+            sent_to_loc = {sent: i for i, sent in enumerate(all_sentences)}      
+
+            # For each title, returns sentences associated with it.       
+            title_to_sent_id = self._get_title_to_sent_id(sample,sent_to_loc)
+
+            # Required sentences for the model to answer the question.     
+            supporting_sentences = self._get_supporting_facts(sample,sent_to_loc)
+
+            # Creates prompt for the model.
+            original = self.create_prompt(sample, sample['context']['title'], all_sentences, title_to_sent_id)
+          
+            self.documents.append({'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
+                              'question': question, 'answer': answer, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id,
+                              'supporting_facts': supporting_sentences,'mask_level': 'sentence', 'id': sample_id})
+            
+    def create_prompt(self, titles, all_sentences, title_to_sent_id):
+        prompt = ""
+        for i in range(len(titles)):
+            prompt += f"Title: {titles[i]} \n Context:"
+            for sent_id in title_to_sent_id[titles[i]]:
+                prompt += f"{all_sentences[sent_id]}"
+            prompt += "\n"
+        return prompt
+     
+    
+    def _get_title_to_sent_id(self,sample,sent_to_loc):
+        title_to_sent_id = {}
+        for i in range(len(sample['context']['title'])):
+            title = sample['context']['title'][i]
+            title_to_sent_id[title] = []
+            for sent in sample['context']['sentences'][i]:
+                title_to_sent_id[title].append(sent_to_loc[sent])
+        return title_to_sent_id
+
+    def _get_supporting_facts(self, sample,sent_to_loc):
+    
+        # Title and sentence id of the supporting facts with respect to that title
+        supporting_facts = [(sample['supporting_facts']['title'][i], sample['supporting_facts']['sent_id'][i]) for i 
+                            in range(len(sample['supporting_facts']['title']))]
+        supporting_sentences = []
+        for title, sent_idx in supporting_facts:
+            title_idx = sample['context']['title'].index(title)
+            supporting_sentence = sample['context']['sentences'][title_idx][sent_idx]
+            supporting_sentence_loc = sent_to_loc[supporting_sentence]
+            supporting_sentences.append((title, supporting_sentence, supporting_sentence_loc))
+        return supporting_sentences
+    
+
 
 
 def get_dataset(dataset, num_explain, seed = 42, **kwargs):
