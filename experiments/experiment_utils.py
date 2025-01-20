@@ -178,25 +178,25 @@ def LIME(signal, n, **kwargs):
     return mobius_to_fourier(output)
 
 
-def faith_shapley(shapiq_explainer,n,  **kwargs):
+def faith_shapley(signal,n,  **kwargs):
     
     mobius_dict = {}
-    for interaction, ref in shapiq_explainer.interaction_lookup.items():
+    for interaction, ref in signal.interaction_lookup.items():
         loc = [0] * n
         for ele in interaction:
             loc[ele] = 1
-        mobius_dict[tuple(loc)] = shapiq_explainer.values[ref]
+        mobius_dict[tuple(loc)] = signal.values[ref]
     return mobius_to_fourier(mobius_dict)
 
 
-def shapley(shapiq_explainer,n,  **kwargs):
+def shapley(signal,n, **kwargs):
     
     mobius_dict = {}
-    for interaction, ref in shapiq_explainer.interaction_lookup.items():
+    for interaction, ref in signal.interaction_lookup.items():
         loc = [0] * n
         for ele in interaction:
             loc[ele] = 1
-        mobius_dict[tuple(loc)] = shapiq_explainer.values[ref]
+        mobius_dict[tuple(loc)] = signal.values[ref]
     return mobius_to_fourier(mobius_dict)
 
 
@@ -207,8 +207,9 @@ def qsft_hard(signal, b, t=5, **kwargs):
 def qsft_soft(signal, b, t=5, **kwargs):
     return support_recovery("soft", signal, b, t=t)["transform"]
 
-def banzhaf(uniform_signal, b, **kwargs):
-    uniform_queries, uniform_samples = uniform_signal
+def banzhaf(signal, b, order = 1, t = 5, **kwargs):
+    uniform_queries = signal.flattened_queries
+    uniform_samples = signal.flattened_samples
     coordinates = uniform_queries
     values = np.array(uniform_samples)
     n = coordinates.shape[1]
@@ -231,6 +232,8 @@ class UniformSampler:
         uniform_queries, uniform_samples = uniform_signal
         self.all_queries = []
         self.all_samples = []
+        self.flattened_queries = uniform_queries
+        self.flattened_samples = uniform_samples
         count = 0
         for m in range(len(qsft_signal.all_samples)):
             queries_subsample = []
@@ -294,10 +297,10 @@ def get_and_evaluate_reconstruction(task, explicand, b = 8, sampling_set = SAMPL
 
     save_dir = f'{save_dir}/{task}/{explicand["id"]}'
     n = len(explicand['input'])
-    os.makedirs(save_dir, exist_ok=True)
+    #os.makedirs(save_dir, exist_ok=True)
 
 
-
+    print(f'the directory is {save_dir}')
     test_samples = pd.read_parquet(f'{save_dir}/test_samples.parquet')
     test_samples = test_samples.drop(columns=['target']).values, test_samples['target'].values
     signal_dict = {}
@@ -308,36 +311,41 @@ def get_and_evaluate_reconstruction(task, explicand, b = 8, sampling_set = SAMPL
     method_list = _get_methods(METHODS, max_order)
     r2_results = {}
 
-    print(f'Methods to run: {method_list}')
     for ordered_method in method_list:
         method, order = ordered_method
+        method_name = f'{ordered_method[0]}{ordered_method[1]}'
         time_start = time.time()
-        print(method, order)
-        print(f'Running {method} reconstruction')
-        if method in ['shapley', 'faith_shapley', 'lime']:
-            if METHOD_TO_SAMPLING[method] not in signal_dict:
-                signal_dict[METHOD_TO_SAMPLING[method]] = _get_signal(sampling_type = METHOD_TO_SAMPLING[method], b = b, n = n, save_dir = save_dir)
-            signal = signal_dict[METHOD_TO_SAMPLING[method]]
-            #all_reconstructions[method] = _get_reconstruction(method = method, signal = signal, order = order, b = b, t = t)
-        elif method in ['qsft_hard', 'qsft_soft']:
-            signal = _get_signal(sampling_type = 'qsft', b = b, n = n, save_dir = save_dir)
-            signal_dict['qsft'] = signal
-            #all_reconstructions[method] = _get_reconstruction(method = method, signal = signal, b = b, order = order, t = t)
-        elif method in ['linear', 'lasso', 'faith_banzhaf','banzhaf']:
-            if 'qsft' not in signal_dict:
-                signal_dict['qsft'] = _get_signal(sampling_type = 'qsft', b = b, n = n, save_dir = save_dir)
-            if 'uniform' not in signal_dict:
-                signal_dict['uniform'] = _get_signal(sampling_type = 'uniform', b = b, n = n, save_dir = save_dir)
-           
-            signal = UniformSampler(signal_dict['qsft'], signal_dict['uniform'])
-    
-        if (n >= 64 and order >= 2) or (n >= 32 and order >= 3) or (n >= 16 and order >= 4):
-            pass
-        else:
-            reconstruction = _get_reconstruction(method = method, signal = signal, b = b, order = order, n = n, t = t)
+        if (n >= 64 and ordered_method[1] >= 2) or (n >= 32 and ordered_method[1] >= 3) or (n >= 16 and ordered_method[1] >= 4):
+                continue 
+        if os.path.exists(f'{save_dir}/reconstruction/{method_name}_{b}.pickle'):
+            reconstruction = pickle.load(open(f'{save_dir}/reconstruction/{method_name}_{b}.pickle', 'rb'))
             r2 = estimate_r2(reconstruction, test_samples)
-            print(f'{method} reconstruction finished in {time.time() - time_start} seconds with r2 score {r2}')
-            r2_results[method] = r2
+        else:
+            print(f'Running {ordered_method} reconstruction')
+            if method in ['shapley', 'faith_shapley', 'lime']:
+                if METHOD_TO_SAMPLING[method] not in signal_dict:
+                    signal_dict[METHOD_TO_SAMPLING[method]] = _get_signal(sampling_type = METHOD_TO_SAMPLING[method], b = b, n = n, save_dir = save_dir)
+                signal = signal_dict[METHOD_TO_SAMPLING[method]]
+                #all_reconstructions[method] = _get_reconstruction(method = method, signal = signal, order = order, b = b, t = t)
+            elif method in ['qsft_hard', 'qsft_soft']:
+                signal = _get_signal(sampling_type = 'qsft', b = b, n = n, save_dir = save_dir)
+                signal_dict['qsft'] = signal
+                #all_reconstructions[method] = _get_reconstruction(method = method, signal = signal, b = b, order = order, t = t)
+            elif method in ['linear', 'lasso', 'faith_banzhaf','banzhaf']:
+                if 'qsft' not in signal_dict:
+                    signal_dict['qsft'] = _get_signal(sampling_type = 'qsft', b = b, n = n, save_dir = save_dir)
+                if 'uniform' not in signal_dict:
+                    signal_dict['uniform'] = _get_signal(sampling_type = 'uniform', b = b, n = n, save_dir = save_dir)
+            
+                signal = UniformSampler(signal_dict['qsft'], signal_dict['uniform'])
+            
+            reconstruction = _get_reconstruction(method = method, signal = signal, b = b, order = order, n = n, t = t)
+            os.makedirs(f'{save_dir}/reconstruction', exist_ok=True)
+            with open(f'{save_dir}/reconstruction/{method_name}_{b}.pickle', 'wb') as handle:
+                pickle.dump(reconstruction, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        r2 = estimate_r2(reconstruction, test_samples)
+        print(f'{method} reconstruction finished in {time.time() - time_start} seconds with r2 score {r2}')
+        r2_results[method] = r2
 
         
     #return all_reconstructions

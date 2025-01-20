@@ -23,7 +23,7 @@ def main(seed=12, device='cuda:0', task='drop', MAX_B=8, MIN_B=8, MAX_ORDER=4,
         save_dir = f'{SAVE_DIR}/{task}/{sample_id}'
         run_sampling(model=model, explicand=explicand, sampling_function=sampling_function, b = MAX_B, n = n, save_dir = save_dir, 
                      order = MAX_ORDER, num_test_samples = num_test_samples, verbose = verbose)
-        get_and_evaluate_reconstruction(task = task, explicand = explicand, b = MAX_B, max_order = MAX_ORDER, save_dir = save_dir, t = t)
+        get_and_evaluate_reconstruction(task = task, explicand = explicand, b = MAX_B, max_order = MAX_ORDER, save_dir = SAVE_DIR, t = t)
         
 
 if __name__ == "__main__":
