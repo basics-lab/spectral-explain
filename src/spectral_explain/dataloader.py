@@ -336,6 +336,7 @@ def get_dataset(dataset, num_explain, seed = 42, **kwargs):
         "sentiment": Reviews,
         "sentiment_mini": Reviews,
         "drop": Drop,
+        "hotpotqa": HotpotQA,
         "cnn": CNN,
     }.get(dataset, NotImplementedError())().retrieve(num_explain, mini, seed, **kwargs)
 
