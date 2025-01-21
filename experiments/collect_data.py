@@ -1,18 +1,21 @@
 import numba
 import numpy as np
 import cProfile, argparse
-from spectral_explain.models.modelloader import QAModel
+from spectral_explain.models.modelloader import HotPotQAModel
 from spectral_explain.dataloader import get_dataset
 from experiment_utils import run_sampling, get_and_evaluate_reconstruction
 
-SAVE_DIR = '/scratch/users/aa3797/results'
+SAVE_DIR = 'experiments/results'
 
 def main(seed=12, device='cuda:0', task='drop', MAX_B=8, MIN_B=8, MAX_ORDER=4, 
     num_explain=1, num_test_samples=10000, t = 5, batch_size=512, verbose=True):
     print("Loading model and explicands")
     explicands = get_dataset(task, num_explain = num_explain, seed = seed)
     print(f"Finished loading explicands")
-    model = QAModel(device = device)
+    if task == 'hotpotqa':
+        model = HotPotQAModel(device = device)
+    else:
+        model = QAModel(device = device)
     model.batch_size = batch_size
     print("Finished loading model and explicands")
     np.random.seed(seed)

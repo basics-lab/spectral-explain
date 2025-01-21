@@ -265,20 +265,23 @@ class HotpotQA(TextDataset):
         self.split = 'validation'
         self.mask_level = 'sentence'
 
-    def load(self, seed = 42, **kwargs):
+    def load(self, mini = False, seed = 42, max_length = 50, **kwargs):
         print("Loading HotpotQA dataset")
         self.documents = []
-        dataset = load_dataset('hotpot_qa', self.task, self.split)[self.split]
+        dataset = load_dataset('hotpot_qa', self.task, self.split, trust_remote_code = True)[self.split]
+        dataset = dataset.shuffle(seed = seed)
         for sample in dataset:
             sample_id = sample['id']
             question = f'Question: {sample["question"]}. Only answer with yes or no.'
             answer = sample['answer']
             if (answer != 'yes') and (answer != 'no'):
                 continue
-            
+        
             # Flatted list of all sentences, and their locations 
             all_sentences = [sent for par in sample['context']['sentences'] for sent in par]
             sent_to_loc = {sent: i for i, sent in enumerate(all_sentences)}      
+            if len(all_sentences) > max_length:
+                continue
 
             # For each title, returns sentences associated with it.       
             title_to_sent_id = self._get_title_to_sent_id(sample,sent_to_loc)
@@ -287,7 +290,7 @@ class HotpotQA(TextDataset):
             supporting_sentences = self._get_supporting_facts(sample,sent_to_loc)
 
             # Creates prompt for the model.
-            original = self.create_prompt(sample, sample['context']['title'], all_sentences, title_to_sent_id)
+            original = self.create_prompt(sample['context']['title'], all_sentences, title_to_sent_id)
           
             self.documents.append({'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
                               'question': question, 'answer': answer, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id,
