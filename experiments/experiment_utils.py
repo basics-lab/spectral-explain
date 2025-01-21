@@ -16,7 +16,6 @@ SAMPLER_DICT = {
     "linear": "uniform",
     "lasso": "uniform",
     "lime": "dummy", # will use sampling from lime later on
-    "faith_banzhaf": "uniform",
     "faith_shapley": "dummy",  # will use sampling from Shap-IQ later on
     "shapley": "dummy",  # will use sampling from Shap-IQ later on
     "banzhaf": "uniform",
@@ -46,10 +45,6 @@ def linear(signal, b, order=1, **kwargs):
 
 def lasso(signal, b, order=1, **kwargs):
     return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b)[0]
-
-def faith_banzhaf(signal, b, order=1, **kwargs):
-    return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b,
-                          fourier_basis=False)[0]
 
 def faith_shapley(signal, b, order=1, **kwargs):
     explainer = shapiq.Explainer(
@@ -106,6 +101,8 @@ def shapley(signal, b, **kwargs):
         shapley_dict[tuple(loc)] = shapley.values[ref]
     return mobius_to_fourier(shapley_dict)
 
+
+
 def banzhaf(signal, b, **kwargs):
     # maximum sample reuse strategy from
     # Eq (5) of Data Banzhaf: https://arxiv.org/pdf/2205.15466
@@ -116,20 +113,22 @@ def banzhaf(signal, b, **kwargs):
             for z in range(2 ** b):
                 coordinates.append(signal.all_queries[m][d][z])
                 values.append(np.real(signal.all_samples[m][d][z]))
-
+    null_value = signal.sampling_function([[0]*signal.n]).item()
     coordinates = np.array(coordinates)
-    values = np.array(values)
+    values = np.array(values) - null_value
 
     banzhaf_dict = {}
     for idx in range(signal.n):
         mask = coordinates[:, idx] > 0.5
+        not_mask = np.logical_not(mask)
         if sum(mask) == 0 or sum(mask) == len(coordinates):
             banzhaf_value_idx = 0
         else:
-            banzhaf_value_idx = ((1 / np.sum(mask)) * np.sum(values[mask])) - ((1 / np.sum(1 - mask)) * np.sum(values[1 - mask]))
+            banzhaf_value_idx = ((1 / np.sum(mask)) * np.sum(values[mask])) - ((1 / np.sum(not_mask)) * np.sum(values[not_mask]))
         loc = [0] * signal.n
         loc[idx] = 1
         banzhaf_dict[tuple(loc)] = banzhaf_value_idx
+    banzhaf_dict[tuple([0] * signal.n)] = null_value
     return mobius_to_fourier(banzhaf_dict)
 
 

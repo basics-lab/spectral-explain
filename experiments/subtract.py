@@ -125,7 +125,6 @@ def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtra
         "lime": LIME,
         "qsft_hard": qsft_hard,
         "qsft_soft": qsft_soft,
-        "faith_banzhaf": faith_banzhaf,
         "faith_shapley": faith_shapley,
         "shapley": shapley,
         "banzhaf": banzhaf,
@@ -152,7 +151,7 @@ def main():
     sampler_set = set([SAMPLER_DICT[method] for method in METHODS])
 
     ordered_methods = []
-    for regression in ['linear', 'lasso', 'faith_banzhaf', 'faith_shapley']:
+    for regression in ['linear', 'lasso', 'faith_shapley', 'shapley_taylor']:
         if regression in METHODS:
             ordered_methods += [(regression, order) for order in range(1, MAX_ORDER + 1)]
             METHODS.remove(regression)
