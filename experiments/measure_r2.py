@@ -99,7 +99,7 @@ def main():
                     results["methods"][method_str]["test_r2"][i, j] = np.nan
                 else:
                     time_taken, test_r2 = run_and_evaluate_method(method, samples, order, b, saved_samples_test)
-                    if method in ["lime", "shapley", "faith_shapley"]:
+                    if method in ["lime", "shapley", "faith_shapley", "shapley_taylor"]:
                         # SHAP-IQ / LIME do not specify sampling vs compute time, we estimate using our sampling time
                         time_taken -= sampling_time
                     results["methods"][method_str]["time"][i, j] = max(time_taken, 0)
