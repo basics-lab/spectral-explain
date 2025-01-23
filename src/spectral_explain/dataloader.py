@@ -6,10 +6,21 @@ import numpy as np
 from datasets import load_dataset
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
+import copy
 from nltk.tokenize import sent_tokenize, word_tokenize
 from transformers import AutoTokenizer
 from collections import Counter
 
+# def bucket_lengths(documents, bins = [0, 64, 128, 256, 512, 1024, 2048]):
+#     bucketed_documents = {i: [] for i in range(len(bins) - 1)}
+#     for doc in documents:
+#         for i in range(len(bins) - 1):
+#             if bins[i] <= doc['n'] < bins[i + 1]:
+#                 bucketed_documents[i].append(doc)
+#                 if len(bucketed_documents[i]) < 5:
+#                     bucketed_documents[i].append(doc)
+#     bucketed_documents = [bucketed_documents[i][j] for i in range(len(bins) - 1) for j in range(len(bucketed_documents[i]))]
+#     return bucketed_documents
 
 def scaler_classification(X_train, X_test, y_train, y_test):
     s = StandardScaler()
@@ -100,7 +111,7 @@ class TextDataset:
         self.documents = None
 
     def retrieve(self, num_explain, mini, seed, **kwargs):
-        self.load(mini, seed, **kwargs)
+        self.load(seed = seed)
         if num_explain > len(self.documents):
             print(f'num_explain > test set size. Explaining all {len(self.documents)} test samples instead.')
             num_explain = len(self.documents)
@@ -120,9 +131,19 @@ class Drop(TextDataset):
         self.mask_level = 'word'
         self.max_answer_length = 1
         #self.model_batch_size = 128
+    
+    def filter_by_length(self,documents,bins = [0, 64, 128, 256, 512, 1024, 2048], num_in_each_bin = 5):
+        bucketed_documents = {i: [] for i in range(len(bins) - 1)}
+        for doc in documents:
+            for i in range(len(bins) - 1):
+                if bins[i] <= doc['n'] < bins[i + 1]:
+                    if len(bucketed_documents[i]) < num_in_each_bin:
+                        bucketed_documents[i].append(doc)
+        bucketed_documents = [bucketed_documents[i][j] for i in range(len(bins) - 1) for j in range(len(bucketed_documents[i]))]
+        return bucketed_documents
+        
 
-    def load(self,mini, seed, max_length = 200):
-        self.documents = None
+    def load(self,seed = 42, max_length = 2048, mini = False, **kwargs):
         dataset = load_dataset('drop', name = self.task, split = self.split)
         dataset = dataset.shuffle(seed = seed)
         documents = []
@@ -167,62 +188,10 @@ class Drop(TextDataset):
             documents.append({'original': original, 'input': context_words, 'locations': locations, 
                               'question': question, 'answer': answer, 'n': len(context_words),
                               'mask_level': self.mask_level, 'id': sample['query_id']})
-        del tokenizer, dataset
-        self.documents = documents
+        
+        self.documents = self.filter_by_length(documents)
+        
 
-class CNN(TextDataset):
-    """CNN dataset"""
-
-    def __init__(self):
-        super().__init__()
-        self.name = 'cnn'
-        self.task = '3.0.0'
-        self.split = 'validation'
-        self.mask_level = 'sentence'
-        self.max_new_tokens = 8
-        #self.model_name = 'meta-llama/Llama-3.2-1B-Instruct'
-        #self.model_name = 'HuggingFaceTB/SmolLM-135M'
-        self.model_batch_size = 128
-    def load(self, mini, seed):
-        self.documents = None
-        dataset = load_dataset('cnn_dailymail',name = self.task, split = self.split)
-        dataset = dataset.shuffle(seed = seed)
-        documents = []
-        for sample in dataset:
-            original = sample['article']
-            if self.mask_level == 'word':
-                context_words = word_tokenize(sample['article'])
-            elif self.mask_level == 'sentence':
-                context_words = sent_tokenize(sample['article'])
-            else:
-                raise ValueError(f'Invalid mask level: {self.mask_level}')
-            question = f'Please summarize the article as succinctly.'
-            locations = []
-            cursor = 0
-            for sent in context_words:
-                loc = original[cursor:].find(sent)
-                locations.append((cursor + loc, cursor + loc + len(sent)))
-                cursor += loc + len(sent)
-            documents.append({'original': original, 'input': context_words, 'locations': locations, 'question': question, 'mask_level': self.mask_level, 'max_new_tokens': self.max_new_tokens,'model_name': self.model_name,'model_batch_size': self.model_batch_size})
-        self.documents = documents
-
-# class HotpotQA(TextDataset):
-#     """HotpotQA dataset"""
-
-#     def __init__(self):
-#         super().__init__()
-#         self.name = 'hotpotqa'
-#         self.task = 'distractor'
-#         self.split = 'validation'
-#         self.mask_level = 'sentence'
-    
-#     def load(self, mini, seed):
-#         self.documents = None
-#         dataset = load_dataset('hotpot_qa', self.task, self.split)
-#         dataset = dataset.shuffle(seed = seed)
-#         documents = []
-#         for sample in dataset:
-#             pass
 
 class Reviews(TextDataset):
     """120 movie reviews
@@ -265,18 +234,38 @@ class HotpotQA(TextDataset):
         self.task = 'distractor'
         self.split = 'validation'
         self.mask_level = 'sentence'
+        self.tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B-Instruct')
+        self.max_token_ids = 1
 
-    def load(self, mini = False, seed = 42, max_length = 50, **kwargs):
+    def filter_by_length(self, documents,bins = [8,16,32,64,128], num_in_each_bin = 10):
+        bucketed_documents = {i: [] for i in range(len(bins) - 1)}
+        for doc in documents:
+            for i in range(len(bins) - 1):
+                if bins[i] <= doc['n'] < bins[i + 1]:
+                    if len(bucketed_documents[i]) < num_in_each_bin:
+                        bucketed_documents[i].append(doc)
+            # for i in range(len(bins) - 1):
+            #     if bins[i] <= doc['n'] < bins[i + 1]:
+            #         bucketed_documents[i].append(doc)
+            #         if len(bucketed_documents[i]) < num_in_each_bin:
+            #             bucketed_documents[i].append(doc)
+        bucketed_documents = [bucketed_documents[i][j] for i in range(len(bins) - 1) for j in range(len(bucketed_documents[i]))]
+        return bucketed_documents
+
+    def load(self,  seed = 42, max_length = 1024, mini = False,**kwargs):
         print("Loading HotpotQA dataset")
-        self.documents = []
+        documents = []
         dataset = load_dataset('hotpot_qa', self.task, self.split, trust_remote_code = True)[self.split]
         dataset = dataset.shuffle(seed = seed)
         for sample in dataset:
             sample_id = sample['id']
-            question = f'Answer the following question: {sample["question"]} based on the context provided below. Only answer with yes or no.'
+            question = f'Answer the following question: {sample["question"]} based on the context provided below. Provide the shortest answer possible, long answers are penalized heavily.'
             answer = sample['answer']
-            if (answer != 'yes') and (answer != 'no'):
+            answer_token_ids = self.tokenizer(answer, return_tensors='pt').input_ids[0,1:].tolist()
+            if len(answer_token_ids) > self.max_token_ids:
                 continue
+            # if (answer != 'yes') and (answer != 'no'):
+            #     continue
         
             # Flatted list of all sentences, and their locations 
             all_sentences = [sent for par in sample['context']['sentences'] for sent in par]
@@ -293,9 +282,10 @@ class HotpotQA(TextDataset):
             # Creates prompt for the model.
             original = self.create_prompt(sample['context']['title'], all_sentences, title_to_sent_id)
           
-            self.documents.append({'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
-                              'question': question, 'answer': answer, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id,
+            documents.append({'answer': answer, 'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
+                              'question': question, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id,
                               'supporting_facts': supporting_sentences,'mask_level': 'sentence', 'id': sample_id})
+        self.documents = self.filter_by_length(documents)
             
     def create_prompt(self, titles, all_sentences, title_to_sent_id):
         prompt = ""
@@ -341,8 +331,43 @@ def get_dataset(dataset, num_explain, seed = 42, **kwargs):
         "sentiment_mini": Reviews,
         "drop": Drop,
         "hotpotqa": HotpotQA,
-        "cnn": CNN,
-    }.get(dataset, NotImplementedError())().retrieve(num_explain, mini, seed, **kwargs)
+    }.get(dataset, NotImplementedError())().retrieve(num_explain = num_explain, mini = mini, seed = seed, **kwargs)
 
 
 
+
+# class CNN(TextDataset):
+#     """CNN dataset"""
+
+#     def __init__(self):
+#         super().__init__()
+#         self.name = 'cnn'
+#         self.task = '3.0.0'
+#         self.split = 'validation'
+#         self.mask_level = 'sentence'
+#         self.max_new_tokens = 8
+#         #self.model_name = 'meta-llama/Llama-3.2-1B-Instruct'
+#         #self.model_name = 'HuggingFaceTB/SmolLM-135M'
+#         self.model_batch_size = 128
+#     def load(self, mini, seed):
+#         self.documents = None
+#         dataset = load_dataset('cnn_dailymail',name = self.task, split = self.split)
+#         dataset = dataset.shuffle(seed = seed)
+#         documents = []
+#         for sample in dataset:
+#             original = sample['article']
+#             if self.mask_level == 'word':
+#                 context_words = word_tokenize(sample['article'])
+#             elif self.mask_level == 'sentence':
+#                 context_words = sent_tokenize(sample['article'])
+#             else:
+#                 raise ValueError(f'Invalid mask level: {self.mask_level}')
+#             question = f'Please summarize the article as succinctly.'
+#             locations = []
+#             cursor = 0
+#             for sent in context_words:
+#                 loc = original[cursor:].find(sent)
+#                 locations.append((cursor + loc, cursor + loc + len(sent)))
+#                 cursor += loc + len(sent)
+#             documents.append({'original': original, 'input': context_words, 'locations': locations, 'question': question, 'mask_level': self.mask_level, 'max_new_tokens': self.max_new_tokens,'model_name': self.model_name,'model_batch_size': self.model_batch_size})
+#         self.documents = documents
