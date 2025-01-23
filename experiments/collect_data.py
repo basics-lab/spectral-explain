@@ -24,8 +24,8 @@ def main(seed=12, device='cuda:0', task='drop', MAX_B=8, MIN_B=8, MAX_ORDER=4,
         n = model.set_explicand(explicand)
         sampling_function = lambda X: model.inference(X)
         save_dir = f'{SAVE_DIR}/{task}/{sample_id}'
-        #run_sampling(model=model, explicand=explicand, sampling_function=sampling_function, Bs = [3,4], n = n, save_dir = save_dir, 
-        #             order = MAX_ORDER, num_test_samples = num_test_samples, verbose = verbose)
+        run_sampling(model=model, explicand=explicand, sampling_function=sampling_function, Bs = [3,4], n = n, save_dir = save_dir, 
+                    order = MAX_ORDER, num_test_samples = num_test_samples, verbose = verbose)
         get_and_evaluate_reconstruction(explicand = explicand, Bs = [3,4], max_order = MAX_ORDER, save_dir = save_dir, t = t)
         
 

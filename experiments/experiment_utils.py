@@ -283,6 +283,7 @@ def get_and_evaluate_reconstruction(explicand, Bs = [4,6,8], save_dir = 'experim
     qsft_signal = _get_signal(sampling_type = 'qsft', b = Bs[-1], n = n, order = 0, save_dir = save_dir)
     
     reconstruction_dict = {}
+    r2_results = {}
     reg_methods = [('linear', i) for i in range(max_order+1)] + [('lasso', i) for i in range(max_order+1)] + [('faith_banzhaf', i) for i in range(max_order+1)]
     qsft_methods = [('qsft_hard', 0), ('qsft_soft', 0)]
     shapley_methods = [('SV', 1)] + [('FSII', i) for i in range(1,max_order+1)] + [('STII', i) for i in range(1,max_order+1)]
@@ -309,7 +310,8 @@ def get_and_evaluate_reconstruction(explicand, Bs = [4,6,8], save_dir = 'experim
                 lime_signal = _get_signal(sampling_type =  method, b = b, n = n, order = order, save_dir = save_dir)
                 reconstruction_dict[ordered_method] = _get_reconstruction(method, lime_signal, order, b, n, t)
             r2 = estimate_r2(reconstruction_dict[ordered_method], test_samples)
-            print(f'Finished {method} reconstruction for b = {b} and order = {order} with r2 score {r2}')
+            r2_results[(method,order,b)] = {'r2': r2, 'reconstruction': reconstruction_dict[ordered_method], 'samples': get_num_samples(qsft_signal,b)}
+            print(f'Finished {method} reconstruction for b = {b} and order = {order} with r2 score {r2_results[(method,order,b)]["r2"]} and {r2_results[(method,order,b)]["samples"]} samples')
     return reconstruction_dict
     
     # Run reconstruction 
