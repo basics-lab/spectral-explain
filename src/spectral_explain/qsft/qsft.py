@@ -401,7 +401,7 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=
         reg = RidgeCV(fit_intercept=False,alphas = np.logspace(-3, 3, 100)).fit(X, values) #LinearRegression(fit_intercept=False).fit(X, values)
         coefs = reg.coef_
     elif type == 'lasso':
-        reg = LassoCV(fit_intercept=False, n_alphas=10).fit(X, values)
+        reg = LassoCV(fit_intercept=False, n_alphas=10, tol = 1e-7).fit(X, values)
         coefs = reg.coef_
     elif type == 'shapley':
         # the first two sampled values correspond to the all 0's and all 1's queries. These should hold with equality.
