@@ -110,7 +110,6 @@ def check_signal_exists(save_dir, method, b, order):
     return os.path.exists(f'{save_dir}/{method}_b{b}_order{order}.pickle')
 
 
-
 # runs sampling and saves signals 
 # If a signal is already saved, it loads it 
 def run_sampling(explicand, sampling_function, Bs = [4,6,8], save_dir = None, 
@@ -135,7 +134,7 @@ def run_sampling(explicand, sampling_function, Bs = [4,6,8], save_dir = None,
         test_df['target'] = test_samples
         test_df.to_parquet(f'{save_dir}/test_samples.parquet')
 
-   
+    get_max_order_n = lambda n: 2 if n >= 64 else 3 if n >= 32 else 4 if n >= 16 else 1
 
     # get qsft signal 
     qsft_signal, num_samples = sampling_strategy(sampling_function, max(Bs), n, save_dir) 
@@ -146,8 +145,8 @@ def run_sampling(explicand, sampling_function, Bs = [4,6,8], save_dir = None,
     # get other signals
     uniform_sampling_methods = [('uniform', Bs[-1],0)]
     shapley_sampling_methods = [('SV', b, 1) for b in Bs]
-    faith_shapley_sampling_methods = [('FSII', b, order) for order in range(1,max_order+1) for b in Bs]
-    shapley_taylor_sampling_methods = [('STII', b, order) for order in range(1,max_order+1) for b in Bs]
+    faith_shapley_sampling_methods = [('FSII', b, get_max_order_n(n))  for b in Bs]
+    shapley_taylor_sampling_methods = [('STII', b, get_max_order_n(n)) for b in Bs]
     lime_sampling_methods = [('lime', b, 1) for b in Bs]
     sampling_methods =  uniform_sampling_methods + shapley_sampling_methods + faith_shapley_sampling_methods + shapley_taylor_sampling_methods + lime_sampling_methods
     for method, b, order in sampling_methods:
@@ -157,13 +156,10 @@ def run_sampling(explicand, sampling_function, Bs = [4,6,8], save_dir = None,
             with open(f'{save_dir}/{method}_b{b}_order{order}.pickle', 'rb') as handle:
                 signal = pickle.load(handle)
         else:
-            if (n >= 64 and order >= 2) or (n >= 32 and order >= 3) or (n >= 16 and order >= 4):
-                continue
-            else:
-                signal = assign_sampler(sampling_type = method, sampling_function = sampling_function, qsft_signal = qsft_signal, 
-                                        order = order, b = b, num_samples = num_samples)
-                with open(f'{save_dir}/{method}_b{b}_order{order}.pickle', 'wb') as handle:
-                    pickle.dump(signal, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            signal = assign_sampler(sampling_type = method, sampling_function = sampling_function, qsft_signal = qsft_signal, 
+                                    order = order, b = b, num_samples = num_samples)
+            with open(f'{save_dir}/{method}_b{b}_order{order}.pickle', 'wb') as handle:
+                pickle.dump(signal, handle, protocol=pickle.HIGHEST_PROTOCOL)
         print(f'Finished {method} sampling for b = {b} and order = {order}')
         signals[method] = signal
 
@@ -189,7 +185,7 @@ def LIME(signal, n, **kwargs):
 
 
 
-def shapley(signal,n, **kwargs):
+def shapley(signal,n, order = 1, **kwargs):
     
     mobius_dict = {}
     for interaction, ref in signal.interaction_lookup.items():

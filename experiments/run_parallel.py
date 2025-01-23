@@ -10,7 +10,7 @@ def run_job(job_id, batch_size):
     device_id = job_id % torch.cuda.device_count()
     device = f'cuda:{device_id}'
     Bs_list = ' '.join(map(str, args.Bs))
-    command = f'python3 experiments/collect_data.py --seed {job_id} --device {device} --task {args.task} --Bs {Bs_list} --MAX_ORDER {args.MAX_ORDER} --num_test_samples {args.num_test_samples} --batch_size {batch_size} --t {args.t}'
+    command = f'python3 experiments/collect_data.py --seed {job_id} --device {device} --task {args.task} --MAX_ORDER {args.MAX_ORDER} --num_test_samples {args.num_test_samples} --batch_size {batch_size} --t {args.t}'
     log_dir = f"experiments/logs/{args.task}"
     os.makedirs(log_dir, exist_ok=True)
     output_file = f"experiments/logs/{args.task}/job_{job_id}_output.txt"  # Output file for the job
@@ -39,13 +39,13 @@ def process_completed_jobs(done, futures, job_ids):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_explain", type=int, default=1)
+    parser.add_argument("--num_explain", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--task", type=str, default='hotpotqa')
+    parser.add_argument("--task", type=str, default='drop')
     parser.add_argument("--MAX_ORDER", type=int, default=4)
     parser.add_argument("--num_test_samples", type=int, default=10000)
-    parser.add_argument("--batch_size", type=int, default=128)
-    parser.add_argument("--Bs", type=int, nargs='+', default=[3,4], help="List of B values for sampling")
+    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--Bs", type=int, nargs='+', default=[4,6,8], help="List of B values for sampling")
     parser.add_argument("--t", type=int, default=5)
     args = parser.parse_args()
     num_jobs = args.num_explain
