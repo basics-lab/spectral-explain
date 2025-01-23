@@ -59,7 +59,8 @@ class QAModel:
 
     def get_original_output(self, max_new_tokens):
         #input_strings = [self.explicand['original']]
-        input_strings = [f"Context: {self.explicand['original']}\nQuestion: {self.explicand['question']}\nAnswer: "]
+        #input_strings = [f"Context: {self.explicand['original']}\nQuestion: {self.explicand['question']}\nAnswer: "]
+        input_strings = [f'{self.explicand['question']}\nContext: {self.explicand['original']}\nAnswer: ']
         inputs = self.tokenizer(input_strings, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
         with torch.no_grad():
             model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], 
@@ -84,10 +85,10 @@ class QAModel:
             batch_prompt = []
             for input in batch_strings:
                 if original_output_token_ids[j] == -1:
-                    prompt = f"Context: {input}\nQuestion: {self.explicand['question']}\nAnswer: "
+                    prompt =  [f'{self.explicand['question']}\nContext: {input}\nAnswer: ']
                 else:
                     cur_answer = self.tokenizer.decode(original_output_token_ids[1:j+1], skip_special_tokens=False,clean_up_tokenization_spaces=True)
-                    prompt = f"Context: {input}\nQuestion: {self.explicand['question']}\nAnswer: " + cur_answer
+                    prompt =  [f'{self.explicand['question']}\nContext: {input}\nAnswer: + {cur_answer}']
               
                 batch_prompt.append(prompt)
             #print(batch_prompt[0])
@@ -145,13 +146,13 @@ class HotPotQAModel(QAModel):
     def create_prompt(self, all_sentences):
         titles = self.explicand['titles']
         title_to_sent_id = self.explicand['title_to_sent_id']
-        prompt = ""
+        prompt = [f'{self.explicand['question']}']
         for i in range(len(titles)):
             prompt += f"Title: {titles[i]} \n Context:"
             for sent_id in title_to_sent_id[titles[i]]:
                 prompt += f"{all_sentences[sent_id]}"
             prompt += "\n"
-        prompt += f"Question: {self.explicand['question']} \nAnswer: "
+        prompt += f"Answer: "
         return prompt
 
     def inference(self, X):

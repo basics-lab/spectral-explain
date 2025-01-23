@@ -138,7 +138,8 @@ class Drop(TextDataset):
             if len(context_words) > max_length:
                 continue
             original = sample['passage']
-            question = f"{sample['question']}. Provide shortest answer possible, long answers are penalized heavily."
+            #question = f"{sample['question']}. Provide shortest answer possible, long answers are penalized heavily."
+            question = f'Answer the following question: {sample["question"]} based on the context provided below. Provide the shortest answer possible, long answers are penalized heavily.'
             answer_list = sample['answers_spans']['spans']
             
 
@@ -272,7 +273,7 @@ class HotpotQA(TextDataset):
         dataset = dataset.shuffle(seed = seed)
         for sample in dataset:
             sample_id = sample['id']
-            question = f'Question: {sample["question"]}. Only answer with yes or no.'
+            question = f'Answer the following question: {sample["question"]} based on the context provided below. Only answer with yes or no.'
             answer = sample['answer']
             if (answer != 'yes') and (answer != 'no'):
                 continue
