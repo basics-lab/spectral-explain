@@ -33,12 +33,12 @@ class TextModel:
 
 # see bos token issue and set max new tokens length
 class QAModel:
-    def __init__(self, device = 'auto', use_flash_attn = False, model_name = 'meta-llama/Llama-3.2-1B-Instruct', quantization_config = quantization_config, batch_size = 128):
+    def __init__(self, device = 'auto', use_flash_attn = True, model_name = 'meta-llama/Llama-3.2-1B-Instruct', quantization_config = quantization_config, batch_size = 128):
         super().__init__()
         self.device = device
         self.batch_size = batch_size
         self.model_name = model_name
-        self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, 
+        self.trained_model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype=torch.bfloat16,
                             device_map = self.device, quantization_config = quantization_config, 
                             attn_implementation = 'flash_attention_2' if use_flash_attn else None)#, attn_implementation = "flash_attention_2")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
@@ -85,10 +85,10 @@ class QAModel:
             batch_prompt = []
             for input in batch_strings:
                 if original_output_token_ids[j] == -1:
-                    prompt =  [f'{self.explicand['question']}\nContext: {input}\nAnswer: ']
+                    prompt =  f'{self.explicand['question']}\nContext: {input}\nAnswer: '
                 else:
                     cur_answer = self.tokenizer.decode(original_output_token_ids[1:j+1], skip_special_tokens=False,clean_up_tokenization_spaces=True)
-                    prompt =  [f'{self.explicand['question']}\nContext: {input}\nAnswer: + {cur_answer}']
+                    prompt =  f'{self.explicand['question']}\nContext: {input}\nAnswer: + {cur_answer}'
               
                 batch_prompt.append(prompt)
             #print(batch_prompt[0])
@@ -140,7 +140,8 @@ class QAModel:
 
 
 class HotPotQAModel(QAModel):
-    def __init__(self, device = 'auto', use_flash_attn = True, model_name = 'meta-llama/Llama-3.2-1B-Instruct', quantization_config = quantization_config, batch_size = 128):
+    def __init__(self, device = 'auto', use_flash_attn = True, model_name = 'meta-llama/Llama-3.2-1B-Instruct', 
+                quantization_config = quantization_config, batch_size = 128):
         super().__init__(device, use_flash_attn, model_name, quantization_config, batch_size)
     
     def create_prompt(self, all_sentences):
