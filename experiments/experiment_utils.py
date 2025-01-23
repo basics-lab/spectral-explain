@@ -66,6 +66,15 @@ def shapley_sampling(sampling_function, qsft_signal, num_samples, index = "SV", 
     flush()
     return shapley
 
+def get_max_order(n):
+    if n >= 64:
+        return 1
+    elif (32 <= n) and (n < 64):
+        return 2
+    elif (16 <= n) and (n < 32):
+        return 3
+    elif n < 16:
+        return 4
 
 # returns a lime explainer object
 def lime_sampling(sampling_function, qsft_signal, b, **kwargs):
@@ -134,7 +143,7 @@ def run_sampling(explicand, sampling_function, Bs = [4,6,8], save_dir = None,
         test_df['target'] = test_samples
         test_df.to_parquet(f'{save_dir}/test_samples.parquet')
 
-    get_max_order_n = lambda n: 2 if n >= 64 else 3 if n >= 32 else 4 if n >= 16 else 1
+    
 
     # get qsft signal 
     qsft_signal, num_samples = sampling_strategy(sampling_function, max(Bs), n, save_dir) 
@@ -145,8 +154,8 @@ def run_sampling(explicand, sampling_function, Bs = [4,6,8], save_dir = None,
     # get other signals
     uniform_sampling_methods = [('uniform', Bs[-1],0)]
     shapley_sampling_methods = [('SV', b, 1) for b in Bs]
-    faith_shapley_sampling_methods = [('FSII', b, get_max_order_n(n))  for b in Bs]
-    shapley_taylor_sampling_methods = [('STII', b, get_max_order_n(n)) for b in Bs]
+    faith_shapley_sampling_methods = [('FSII', b, get_max_order(n))  for b in Bs]
+    shapley_taylor_sampling_methods = [('STII', b, get_max_order(n)) for b in Bs]
     lime_sampling_methods = [('lime', b, 1) for b in Bs]
     sampling_methods =  uniform_sampling_methods + shapley_sampling_methods + faith_shapley_sampling_methods + shapley_taylor_sampling_methods + lime_sampling_methods
     for method, b, order in sampling_methods:
@@ -186,9 +195,14 @@ def LIME(signal, n, **kwargs):
 
 
 def shapley(signal,n, order = 1, **kwargs):
-    
+    '''
+    Gets shapley reconstruction up to order 
+    '''
+    #int_values = signal.get_n_order(order)
     mobius_dict = {}
     for interaction, ref in signal.interaction_lookup.items():
+        if len(interaction) > order:
+            continue
         loc = [0] * n
         for ele in interaction:
             loc[ele] = 1
@@ -280,11 +294,12 @@ def get_and_evaluate_reconstruction(explicand, Bs = [4,6,8], save_dir = 'experim
     
     reconstruction_dict = {}
     r2_results = {}
+    max_order = get_max_order(n)
     reg_methods = [('linear', i) for i in range(max_order+1)] + [('lasso', i) for i in range(max_order+1)] + [('faith_banzhaf', i) for i in range(max_order+1)]
     qsft_methods = [('qsft_hard', 0), ('qsft_soft', 0)]
-    shapley_methods = [('SV', 1)] + [('FSII', i) for i in range(1,max_order+1)] + [('STII', i) for i in range(1,max_order+1)]
+    shap_methods = [('SV', 1)] +  [('FSII', i) for i in range(1,max_order+1)] + [('STII', i) for i in range(1,max_order+1)]
     lime_methods = [('lime', 1)]
-    all_methods = reg_methods + qsft_methods + shapley_methods + lime_methods
+    all_methods = reg_methods + qsft_methods + shap_methods  + lime_methods
     for b in Bs:
         for ordered_method in all_methods:
             method, order = ordered_method
@@ -299,9 +314,10 @@ def get_and_evaluate_reconstruction(explicand, Bs = [4,6,8], save_dir = 'experim
                 uniform_signal = _get_signal(sampling_type = 'uniform', b = Bs[-1], n = n, order = 0, save_dir = save_dir)
                 signal = UniformSampler(qsft_signal, uniform_signal)
                 reconstruction_dict[ordered_method] = _get_reconstruction(method, signal, order, b, n, t)
-            elif ordered_method in shapley_methods:
-                shap_signal = _get_signal(sampling_type =  method, b = b, n = n, order = order, save_dir = save_dir)
+            elif ordered_method in shap_methods:
+                shap_signal = _get_signal(sampling_type =  method, b = b, n = n, order = max_order if method != 'SV' else 1, save_dir = save_dir)
                 reconstruction_dict[ordered_method] = _get_reconstruction(method, shap_signal, order, b, n, t)
+    
             elif method == 'lime':
                 lime_signal = _get_signal(sampling_type =  method, b = b, n = n, order = order, save_dir = save_dir)
                 reconstruction_dict[ordered_method] = _get_reconstruction(method, lime_signal, order, b, n, t)
