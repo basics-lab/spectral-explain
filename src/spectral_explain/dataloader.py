@@ -147,7 +147,7 @@ class Drop(TextDataset):
         dataset = load_dataset('drop', name = self.task, split = self.split)
         dataset = dataset.shuffle(seed = seed)
         documents = []
-        tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B-Instruct')
+        tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-3B-Instruct')
         
         for sample in dataset:
             if self.mask_level == 'word':
@@ -189,7 +189,7 @@ class Drop(TextDataset):
                               'question': question, 'answer': answer, 'n': len(context_words),
                               'mask_level': self.mask_level, 'id': sample['query_id']})
         
-        self.documents = self.filter_by_length(documents)
+        self.documents = documents
         
 
 
@@ -253,7 +253,6 @@ class HotpotQA(TextDataset):
         return bucketed_documents
 
     def load(self,  seed = 42, max_token_length = 700, max_length  = 32, min_length = 16, mini = False,**kwargs):
-        print("Loading HotpotQA dataset")
         documents = []
         dataset = load_dataset('hotpot_qa', self.task, self.split, trust_remote_code = True)[self.split]
         dataset = dataset.shuffle(seed = seed)
@@ -287,7 +286,7 @@ class HotpotQA(TextDataset):
             documents.append({'answer': answer, 'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
                               'question': question, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id,
                               'supporting_facts': supporting_sentences,'mask_level': 'sentence', 'id': sample_id})
-        self.documents = self.filter_by_length(documents)
+        self.documents = documents
             
     def create_prompt(self, titles, all_sentences, title_to_sent_id):
         prompt = ""
