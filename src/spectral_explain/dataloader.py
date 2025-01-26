@@ -143,7 +143,7 @@ class Drop(TextDataset):
         return bucketed_documents
         
 
-    def load(self,seed = 42, max_length = 2048, mini = False, **kwargs):
+    def load(self,seed = 42, min_length = 64, max_length = 128, mini = False, **kwargs):
         dataset = load_dataset('drop', name = self.task, split = self.split)
         dataset = dataset.shuffle(seed = seed)
         documents = []
@@ -156,7 +156,7 @@ class Drop(TextDataset):
                 context_words = sent_tokenize(sample['passage'])
             else:
                 raise ValueError(f'Invalid mask level: {self.mask_level}')
-            if len(context_words) > max_length:
+            if (len(context_words) < min_length) or (len(context_words) > max_length):
                 continue
             original = sample['passage']
             #question = f"{sample['question']}. Provide shortest answer possible, long answers are penalized heavily."
@@ -252,7 +252,7 @@ class HotpotQA(TextDataset):
         bucketed_documents = [bucketed_documents[i][j] for i in range(len(bins) - 1) for j in range(len(bucketed_documents[i]))]
         return bucketed_documents
 
-    def load(self,  seed = 42, max_length = 1024, mini = False,**kwargs):
+    def load(self,  seed = 42, max_token_length = 700, max_length  = 32, min_length = 16, mini = False,**kwargs):
         print("Loading HotpotQA dataset")
         documents = []
         dataset = load_dataset('hotpot_qa', self.task, self.split, trust_remote_code = True)[self.split]
@@ -270,7 +270,7 @@ class HotpotQA(TextDataset):
             # Flatted list of all sentences, and their locations 
             all_sentences = [sent for par in sample['context']['sentences'] for sent in par]
             sent_to_loc = {sent: i for i, sent in enumerate(all_sentences)}      
-            if len(all_sentences) > max_length:
+            if (len(all_sentences) < min_length) or (len(all_sentences) > max_length):
                 continue
 
             # For each title, returns sentences associated with it.       
@@ -281,6 +281,8 @@ class HotpotQA(TextDataset):
 
             # Creates prompt for the model.
             original = self.create_prompt(sample['context']['title'], all_sentences, title_to_sent_id)
+            if len(self.tokenizer(original, return_tensors='pt').input_ids[0,1:].tolist()) > max_token_length:
+                continue
           
             documents.append({'answer': answer, 'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
                               'question': question, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id,

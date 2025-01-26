@@ -12,10 +12,10 @@ import gc
 
 
 quantization_config = BitsAndBytesConfig(
-load_in_4bit=True,
-bnb_4bit_compute_dtype=torch.bfloat16,
-bnb_4bit_quant_type="nf4",
-bnb_4bit_use_double_quant=True)
+load_in_8bit=True)
+# bnb_4bit_compute_dtype=torch.bfloat16,
+# bnb_4bit_quant_type="nf4",
+# bnb_4bit_use_double_quant=True)
 
 def flush():
     gc.collect()
@@ -33,7 +33,7 @@ class TextModel:
 
 # see bos token issue and set max new tokens length
 class QAModel:
-    def __init__(self, device = 'auto', use_flash_attn = True, model_name = 'meta-llama/Llama-3.2-1B-Instruct', quantization_config = quantization_config, batch_size = 128):
+    def __init__(self, device = 'auto', use_flash_attn = True, model_name = 'meta-llama/Llama-3.2-3B-Instruct', quantization_config = quantization_config, batch_size = 128):
         super().__init__()
         self.device = device
         self.batch_size = batch_size
@@ -140,14 +140,14 @@ class QAModel:
 
 
 class HotPotQAModel(QAModel):
-    def __init__(self, device = 'auto', use_flash_attn = True, model_name = 'meta-llama/Llama-3.2-1B-Instruct', 
+    def __init__(self, device = 'auto', use_flash_attn = True, model_name = 'meta-llama/Llama-3.2-3B-Instruct', 
                 quantization_config = quantization_config, batch_size = 128):
         super().__init__(device, use_flash_attn, model_name, quantization_config, batch_size)
     
     def create_prompt(self, all_sentences):
         titles = self.explicand['titles']
         title_to_sent_id = self.explicand['title_to_sent_id']
-        prompt = [f'{self.explicand['question']}']
+        prompt = f'{self.explicand['question']}'
         for i in range(len(titles)):
             prompt += f"Title: {titles[i]} \n Context:"
             for sent_id in title_to_sent_id[titles[i]]:

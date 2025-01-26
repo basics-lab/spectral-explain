@@ -35,7 +35,7 @@ if __name__ == "__main__":
     profiler.enable()
     numba.set_num_threads(8)
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=46)
     parser.add_argument("--device", type=str, default='cuda:0')
     parser.add_argument("--task", type=str, default='drop')
     parser.add_argument("--MAX_ORDER", type=int, default=4)

@@ -39,12 +39,12 @@ def process_completed_jobs(done, futures, job_ids):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_explain", type=int, default=100)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--num_explain", type=int, default=8)
+    parser.add_argument("--seed", type=int, default=46)
     parser.add_argument("--task", type=str, default='drop')
     parser.add_argument("--MAX_ORDER", type=int, default=4)
     parser.add_argument("--num_test_samples", type=int, default=10000)
-    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--Bs", type=int, nargs='+', default=[4,6,8], help="List of B values for sampling")
     parser.add_argument("--t", type=int, default=5)
     args = parser.parse_args()
