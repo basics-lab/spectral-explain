@@ -130,6 +130,7 @@ class Drop(TextDataset):
         self.split = 'validation'
         self.mask_level = 'word'
         self.max_answer_length = 1
+        self.tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-3B-Instruct')
         #self.model_batch_size = 128
     
     def filter_by_length(self,documents,bins = [0, 64, 128, 256, 512, 1024, 2048], num_in_each_bin = 5):
@@ -143,7 +144,7 @@ class Drop(TextDataset):
         return bucketed_documents
         
 
-    def load(self,seed = 42, min_length = 64, max_length = 128, mini = False, **kwargs):
+    def load(self,seed = 42, min_length = 256, max_length = 300, max_token_length = 512, mini = False, **kwargs):
         dataset = load_dataset('drop', name = self.task, split = self.split)
         dataset = dataset.shuffle(seed = seed)
         documents = []
@@ -176,7 +177,8 @@ class Drop(TextDataset):
             #answer_length = len(answer.split(' '))
             #if answer_length > self.max_answer_length:
             #    continue
-
+            if len(self.tokenizer(original, return_tensors='pt').input_ids[0,1:].tolist()) > max_token_length:
+                continue
             
             cursor = 0
             substring = sample['passage']

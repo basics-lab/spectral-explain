@@ -66,14 +66,18 @@ def shapley_sampling(sampling_function, qsft_signal, num_samples, index = "SV", 
     flush()
     return shapley
 
-def get_max_order(n):
+
+def get_max_order(n, index = None):
     if n >= 64:
         return 1
-    elif (32 <= n) and (n < 64):
+    if (n >= 32) and (n < 64):
         return 2
-    elif (16 <= n) and (n < 32):
-        return 3
-    elif n < 16:
+    if (n >= 16) and (n < 32):
+        if index == 'STII':
+            return 2
+        else:
+            return 3
+    if n < 16:
         return 4
 
 # returns a lime explainer object
@@ -253,7 +257,6 @@ def _get_signal(sampling_type, b, n, order,save_dir):
             return sampling_strategy(lambda X: 1.0, b, n, save_dir) [0]
         else:
             with open(f'{save_dir}/{sampling_type}_b{b}_order{order}.pickle', 'rb') as handle:
-                print(f'Loading {sampling_type} signal')
                 signal = pickle.load(handle)            
                 return signal
 
@@ -282,9 +285,11 @@ def flush():
     torch.cuda.reset_max_memory_allocated()
     
 def get_and_evaluate_reconstruction(explicand, Bs = [4,6,8], save_dir = 'experiments/results', 
-                                    max_order = 4, t = 5, **kwargs):
+                                    max_order = 4, t = 5, verbose = False, **kwargs):
    
-
+    # if not verbose:
+    #     def print(*args, **kwargs):
+    #         pass
     n = len(explicand['input'])
     test_samples = pd.read_parquet(f'{save_dir}/test_samples.parquet')
     test_samples = test_samples.drop(columns=['target']).values, test_samples['target'].values
@@ -297,34 +302,48 @@ def get_and_evaluate_reconstruction(explicand, Bs = [4,6,8], save_dir = 'experim
     max_order = get_max_order(n)
     reg_methods = [('linear', i) for i in range(max_order+1)] + [('lasso', i) for i in range(max_order+1)] + [('faith_banzhaf', i) for i in range(max_order+1)]
     qsft_methods = [('qsft_hard', 0), ('qsft_soft', 0)]
-    shap_methods = [('SV', 1)] +  [('FSII', i) for i in range(1,max_order+1)] + [('STII', i) for i in range(1,max_order+1)]
+    shap_methods = [('SV', 1)] +  [('FSII', i) for i in range(1,max_order+1)] + [('STII', get_max_order(n, index = 'STII')) for i in range(1,max_order+1)]
     lime_methods = [('lime', 1)]
     all_methods = reg_methods + qsft_methods + shap_methods  + lime_methods
+    signal_dict = {}
     for b in Bs:
         for ordered_method in all_methods:
             method, order = ordered_method
-            print(f'Running {method} reconstruction for b = {b} and order = {order}')
+            method_name = f'{method}_{order}'
+            #print(f'Running {method} reconstruction for b = {b} and order = {order}')
             if method == 'qsft_hard' or method == 'qsft_soft':
                 qsft_reconstruction = _get_reconstruction(method, qsft_signal, order, b, n, t)
-                reconstruction_dict[ordered_method] = qsft_reconstruction
+                reconstruction_dict[(method_name,b)] = qsft_reconstruction
             elif (n >= 64 and order >= 2) or (n >= 32 and order >= 3) or (n >= 16 and order >= 4):
-                reconstruction_dict[ordered_method] = None
+                reconstruction_dict[(method_name,b)] = None
                 continue
             elif ordered_method in reg_methods:
-                uniform_signal = _get_signal(sampling_type = 'uniform', b = Bs[-1], n = n, order = 0, save_dir = save_dir)
-                signal = UniformSampler(qsft_signal, uniform_signal)
-                reconstruction_dict[ordered_method] = _get_reconstruction(method, signal, order, b, n, t)
+                if ('uniform', Bs[-1]) not in signal_dict:
+                    uniform_signal = _get_signal(sampling_type = 'uniform', b = Bs[-1], n = n, order = 0, save_dir = save_dir)
+                    signal_dict[('uniform', Bs[-1])] = uniform_signal    
+                signal = UniformSampler(qsft_signal, signal_dict[('uniform', Bs[-1])])
+                reconstruction_dict[(method_name,b)] = _get_reconstruction(method, signal, order, b, n, t)
             elif ordered_method in shap_methods:
-                shap_signal = _get_signal(sampling_type =  method, b = b, n = n, order = max_order if method != 'SV' else 1, save_dir = save_dir)
-                reconstruction_dict[ordered_method] = _get_reconstruction(method, shap_signal, order, b, n, t)
-    
+                try: 
+                    shap_signal = _get_signal(sampling_type =  method, b = b, n = n, order = max_order if method != 'SV' else 1, save_dir = save_dir)
+                    reconstruction_dict[(method_name,b)] = _get_reconstruction(method, shap_signal, order, b, n, t)
+                except Exception as e:
+                    continue
             elif method == 'lime':
                 lime_signal = _get_signal(sampling_type =  method, b = b, n = n, order = order, save_dir = save_dir)
-                reconstruction_dict[ordered_method] = _get_reconstruction(method, lime_signal, order, b, n, t)
-            r2 = estimate_r2(reconstruction_dict[ordered_method], test_samples)
-            r2_results[(method,order,b)] = {'r2': r2, 'reconstruction': reconstruction_dict[ordered_method], 'samples': get_num_samples(qsft_signal,b)}
-            print(f'Finished {method} reconstruction for b = {b} and order = {order} with r2 score {r2_results[(method,order,b)]["r2"]} and {r2_results[(method,order,b)]["samples"]} samples')
-    return reconstruction_dict
+                reconstruction_dict[(method_name,b)] = _get_reconstruction(method, lime_signal, order, b, n, t)
+            r2 = estimate_r2(reconstruction_dict[(method_name,b)], test_samples)
+            r2_results[(method_name, b)] = {'r2': r2, 'samples': get_num_samples(qsft_signal,b)}
+            #r2_results[(method,order,b)] = {'r2': r2, 'reconstruction': reconstruction_dict[ordered_method], 'samples': get_num_samples(qsft_signal,b)}
+            print(f'Finished {method} reconstruction for b = {b} and order = {order} with r2 score {r2_results[(method_name,b)]["r2"]} and {r2_results[(method_name,b)]["samples"]} samples')
+    
+    for k in explicand.keys():
+        reconstruction_dict[k] = explicand[k]
+    with open(f'{save_dir}/reconstruction_dict.pickle', 'wb') as handle:
+        pickle.dump(reconstruction_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(f'{save_dir}/r2_results.pickle', 'wb') as handle:
+        pickle.dump(r2_results, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    return reconstruction_dict, r2_results
     
     # Run reconstruction 
     #print(get_methods(METHODS, max_order))
