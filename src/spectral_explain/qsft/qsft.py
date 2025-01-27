@@ -394,7 +394,7 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=
     if fourier_basis:
         X = np.real(np.exp(coordinates @ (1j * np.pi * support.T)))
     else:
-        X = ((coordinates @ support.T) > 0.5).astype(int)
+        X = ((coordinates @ support.T) >= np.sum(support, axis=1)).astype(int)
         X[:, 0] = 1
 
     if type == 'linear':
