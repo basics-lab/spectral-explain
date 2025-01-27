@@ -236,39 +236,23 @@ class HotpotQA(TextDataset):
         self.task = 'distractor'
         self.split = 'validation'
         self.mask_level = 'sentence'
-        self.tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B-Instruct')
+        self.tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-3B-Instruct')
         self.max_token_ids = 1
 
-    def filter_by_length(self, documents,bins = [8,16,32,64,128], num_in_each_bin = 10):
-        bucketed_documents = {i: [] for i in range(len(bins) - 1)}
-        for doc in documents:
-            for i in range(len(bins) - 1):
-                if bins[i] <= doc['n'] < bins[i + 1]:
-                    if len(bucketed_documents[i]) < num_in_each_bin:
-                        bucketed_documents[i].append(doc)
-            # for i in range(len(bins) - 1):
-            #     if bins[i] <= doc['n'] < bins[i + 1]:
-            #         bucketed_documents[i].append(doc)
-            #         if len(bucketed_documents[i]) < num_in_each_bin:
-            #             bucketed_documents[i].append(doc)
-        bucketed_documents = [bucketed_documents[i][j] for i in range(len(bins) - 1) for j in range(len(bucketed_documents[i]))]
-        return bucketed_documents
+  
 
-    def load(self,  seed = 42, max_token_length = 700, max_length  = 32, min_length = 16, mini = False,**kwargs):
+    def load(self,  seed = 42, min_length = 17, max_length = 32, max_token_length = 1000, mini = False,**kwargs):
         documents = []
         dataset = load_dataset('hotpot_qa', self.task, self.split, trust_remote_code = True)[self.split]
         dataset = dataset.shuffle(seed = seed)
         for sample in dataset:
             sample_id = sample['id']
-            question = f'Answer the following question: {sample["question"]} based on the context provided below. Provide the shortest answer possible, long answers are penalized heavily.'
+            question = f'Answer the following question: {sample["question"]} based on the context provided below. Answer in a single word or phrase. Long answers are penalized heavily.'
             answer = sample['answer']
             answer_token_ids = self.tokenizer(answer, return_tensors='pt').input_ids[0,1:].tolist()
             if len(answer_token_ids) > self.max_token_ids:
                 continue
-            # if (answer != 'yes') and (answer != 'no'):
-            #     continue
-        
-            # Flatted list of all sentences, and their locations 
+
             all_sentences = [sent for par in sample['context']['sentences'] for sent in par]
             sent_to_loc = {sent: i for i, sent in enumerate(all_sentences)}      
             if (len(all_sentences) < min_length) or (len(all_sentences) > max_length):
@@ -288,6 +272,7 @@ class HotpotQA(TextDataset):
             documents.append({'answer': answer, 'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
                               'question': question, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id,
                               'supporting_facts': supporting_sentences,'mask_level': 'sentence', 'id': sample_id})
+        
         self.documents = documents
             
     def create_prompt(self, titles, all_sentences, title_to_sent_id):

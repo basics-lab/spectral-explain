@@ -91,7 +91,6 @@ class QAModel:
                     prompt =  f"{self.explicand['question']}\nContext: {input}\nAnswer: + {cur_answer}"
               
                 batch_prompt.append(prompt)
-            #print(batch_prompt[0])
             inputs = self.tokenizer(batch_prompt, return_tensors='pt', padding=True, truncation=True).to(self.trained_model.device)
             with torch.no_grad():
                 model_outputs = self.trained_model.generate(inputs["input_ids"],attention_mask=inputs["attention_mask"], do_sample= False, max_new_tokens=1, output_scores=True, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
@@ -99,11 +98,6 @@ class QAModel:
             batch_token_probs = torch.clamp(batch_token_probs, min = 1e-6, max = 1.0 - 1e-6)
             batch_token_log_probs = F.log_softmax(batch_token_probs,dim = 1)[:,original_output_token_ids[j+1]].detach().cpu().numpy()
             batch_sequence_log_probs = [batch_sequence_log_probs[idx] + batch_token_log_probs[idx] for idx in range(len(batch_strings))]
-            # token_probs = torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,original_output_token_ids[j+1]].detach().cpu().numpy()
-            # print(token_probs.shape) # batch size * vocab size
-            # token_probs = F.log_softmax(torch.stack(model_outputs['scores']).swapaxes(0,1)[:,0,:],dim = 1)[:,original_output_token_ids[j+1]].detach().cpu().numpy() # log probs of the next token (batch size * vocab size)
-            # batch_sequence_log_probs = [batch_sequence_log_probs[tok_pos] + token_probs[tok_pos] for tok_pos in range(len(batch_strings))]
-           
             del model_outputs, inputs, batch_prompt, batch_token_probs, batch_token_log_probs
             flush()
 
@@ -147,7 +141,7 @@ class HotPotQAModel(QAModel):
     def create_prompt(self, all_sentences):
         titles = self.explicand['titles']
         title_to_sent_id = self.explicand['title_to_sent_id']
-        prompt = f'{self.explicand['question']}'
+        prompt = f"{self.explicand['question']}"
         for i in range(len(titles)):
             prompt += f"Title: {titles[i]} \n Context:"
             for sent_id in title_to_sent_id[titles[i]]:
