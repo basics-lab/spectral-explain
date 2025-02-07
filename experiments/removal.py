@@ -169,7 +169,8 @@ def removal(explicands, model, methods, bs, max_order, subtract_dist):
                                           'positive_diffs': np.zeros(
                                               (len(explicands), count_b, subtract_dist + 1)),
                                           'negative_diffs': np.zeros(
-                                              (len(explicands), count_b, subtract_dist + 1))}
+                                              (len(explicands), count_b, subtract_dist + 1)),
+                                          'sampler': None}
                     for method, order in ordered_methods}
     }
 
@@ -197,18 +198,19 @@ def removal(explicands, model, methods, bs, max_order, subtract_dist):
             for method, order in ordered_methods:
                 method_str = f'{method}_{order}'
                 print(method_str)
-                samples = active_sampler_dict[SAMPLER_DICT[method]]
+                sampler = active_sampler_dict[SAMPLER_DICT[method]]
+                results["methods"][method_str]["sampler"] = sampler
                 if (order >= 2 and n >= 64) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16):
                     results["methods"][method_str]["positive_locs"][i, j, :] = np.nan
                     results["methods"][method_str]["negative_locs"][i, j, :] = np.nan
                     results["methods"][method_str]["positive_diffs"][i, j, :] = np.nan
                     results["methods"][method_str]["negative_diffs"][i, j, :] = np.nan
                 else:
-                    pos_diffs, pos_subtracted_locs = run_and_evaluate_method(method, samples, order, b,
+                    pos_diffs, pos_subtracted_locs = run_and_evaluate_method(method, sampler, order, b,
                                                                             sampling_function,
                                                                             subtract_dist, direction=True)
 
-                    neg_diffs, neg_subtracted_locs = run_and_evaluate_method(method, samples, order, b,
+                    neg_diffs, neg_subtracted_locs = run_and_evaluate_method(method, sampler, order, b,
                                                                             sampling_function,
                                                                             subtract_dist, direction=False)
 
