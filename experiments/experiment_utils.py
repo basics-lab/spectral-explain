@@ -63,7 +63,7 @@ def shapley(signal, b, **kwargs):
 
 
 def banzhaf(signal, b, **kwargs):
-    return fit_regression('ridge', {'locations': bin_vecs_low_order(signal.n, 2, 1).T}, signal, signal.n, b,
+    return fit_regression('ridge', {'locations': bin_vecs_low_order(signal.n, 1).T}, signal, signal.n, b,
                           fourier_basis=False)[0]
 
 
@@ -85,7 +85,7 @@ def faith_shapley(signal, b, order=1, **kwargs):
 
 
 def faith_banzhaf(signal, b, order=1, **kwargs):
-    return fit_regression('ridge', {'locations': bin_vecs_low_order(signal.n, 2, order).T}, signal, signal.n, b,
+    return fit_regression('ridge', {'locations': bin_vecs_low_order(signal.n, order).T}, signal, signal.n, b,
                           fourier_basis=False)[0]
 
 
