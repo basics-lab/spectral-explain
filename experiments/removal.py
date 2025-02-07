@@ -35,7 +35,20 @@ def flip_node(i, tree, all_on_sum):
     return tree, all_on_sum
 
 
-def compute_best_subtraction(transform, method, sampling_function, num_to_subtract=10, direction=None):
+def compute_best_subtraction(transform, method, num_to_subtract, direction):
+    """
+    Compute the best feature subtraction based on the given method.
+
+    Parameters:
+    - transform: The transformation of the model's explanation function.
+    - method: The method used for feature subtraction ('greedy', 'smart-greedy', 'linear').
+    - num_to_subtract: The maximum number of features to subtract.
+    - direction: The direction of the evaluation (True for positive, False for negative).
+
+    Returns:
+    - masks: A list of masks corresponding to each best feature subtraction.
+    - subtracted: The indices of the subtracted features.
+    """
     n = 0
     for elem in transform.keys():
         n = len(elem)
@@ -50,8 +63,6 @@ def compute_best_subtraction(transform, method, sampling_function, num_to_subtra
         if val > 1e9:
             raise ValueError("Value too large - consider normalizing the function")
     list_of_interactions.sort(key=lambda x: len(x[0]) + 1e-9 * abs(x[1]), reverse=True)  # DANGEROUS!
-    if direction is None:
-        direction = sampling_function([[1] * n]) > 0
     if method == 'greedy':  # Brute force
         mask = [1] * n
         while num_to_subtract > 0:
@@ -110,7 +121,20 @@ def compute_best_subtraction(transform, method, sampling_function, num_to_subtra
     return masks, subtracted
 
 
-def subtraction_test(reconstruction, sampling_function, method, subtract_dist, direction=None):
+def subtraction_test(reconstruction, sampling_function, method, subtract_dist, direction):
+    """
+    Evaluate the effect of feature removal on the model's output.
+
+    Parameters:
+    - reconstruction: The local reconstruction of the model's explanation function.
+    - method: The method used for feature subtraction ('greedy', 'smart-greedy', 'linear').
+    - subtract_dist: The maximum number of features to subtract.
+    - direction: The direction of the evaluation (True for positive, False for negative, default is None).
+
+    Returns:
+    - res: The differences in the model's output after each feature subtraction.
+    - subtracted: The indices of the subtracted features.
+    """
     sub_mask, subtracted = compute_best_subtraction(reconstruction, method, sampling_function, subtract_dist, direction)
     f = sampling_function(sub_mask)
     res = abs(f[0] - f) / abs(f[0])
