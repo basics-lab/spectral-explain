@@ -121,31 +121,23 @@ def get_ordered_methods(methods, max_order):
 
 class AlternativeSampler:
     def __init__(self, type, sampling_function, qsft_signal, n):
-        assert type in ["uniform", "dummy"]
-        # dummy just needs access to n, sampling_function and num samples
-        self.queries_finder = {
-            "uniform": self.uniform_queries,
-            "dummy": self.dummy_queries
-        }.get(type, NotImplementedError())
-
         self.n = n
-        self.all_queries = []
-        self.all_samples = []
-        for m in range(len(qsft_signal.all_samples)):
-            queries_subsample = []
-            samples_subsample = []
-            for d in range(len(qsft_signal.all_samples[0])):
-                queries = self.queries_finder(len(qsft_signal.all_queries[m][d]))
-                queries_subsample.append(queries)
-                samples_subsample.append(sampling_function(queries))
-            self.all_queries.append(queries_subsample)
-            self.all_samples.append(samples_subsample)
         self.num_samples = lambda b: len(qsft_signal.all_samples) * len(qsft_signal.all_samples[0]) * (2 ** b)
         self.sampling_function = sampling_function
+        assert type in ["uniform", "dummy"]
+
+        if type == "uniform":
+            self.all_queries = []
+            self.all_samples = []
+            for m in range(len(qsft_signal.all_samples)):
+                queries_subsample = []
+                samples_subsample = []
+                for d in range(len(qsft_signal.all_samples[0])):
+                    queries = self.uniform_queries(len(qsft_signal.all_queries[m][d]))
+                    queries_subsample.append(queries)
+                    samples_subsample.append(sampling_function(queries))
+                self.all_queries.append(queries_subsample)
+                self.all_samples.append(samples_subsample)
 
     def uniform_queries(self, num_samples):
         return np.random.choice(2, size=(num_samples, self.n))
-
-    def dummy_queries(self, num_samples):
-        # Will sample later with method-specific sampling pattern
-        return np.zeros((num_samples, self.n))
