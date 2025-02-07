@@ -3,8 +3,7 @@
   <br>
   <img src="temp_logo.png" width="200">
   <br>
-  SPEX
-  <br>
+
 </h1>
 
 <h4 align="center">Spectral Explainer: Scalable Feature Interaction Attribution</h4>
@@ -35,11 +34,13 @@ pip install tqdm
 ```
 
 <h2 id="quickstart">Quickstart</h2>
+
 ```
 python experiments/faithfulness.py
 ```
 
 <h2 id="citation">Citation</h2>
+
 ```bibtex
 @inproceedings{TBD,
   title     = {TBD},
