@@ -40,7 +40,7 @@ def run_and_evaluate_method(method, sampler, order, b, saved_samples_test):
     return end_time - start_time, estimate_r2(reconstruction, saved_samples_test), reconstruction
 
 
-def faithfulness(explicands, model, methods, max_b, all_bs, max_order, num_test_samples):
+def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
     """
     Evaluate the faithfulness of different explanation methods.
 
@@ -48,19 +48,18 @@ def faithfulness(explicands, model, methods, max_b, all_bs, max_order, num_test_
     - explicands: The explicands to explain.
     - model: The model to use for inference.
     - methods: The list of attribution methods to evaluate.
-    - max_b: The maximum sparsity parameter, which determines the number of training samples.
-    - all_bs: Whether to use different sparsity parameters from 3 to max_b.
+    - bs: The list of sparsity parameters to use.
     - max_order: The maximum order of baseline interaction methods.
     - num_test_samples: The number of test samples to use for evaluation.
 
     Returns:
-    - None. Saves the results to a pickle file (results/{TASK}_faithfulness.pkl)
+    - results. A python dictionary with removal results.
     """
     sampler_set = set([SAMPLER_DICT[method] for method in methods])
 
     ordered_methods = get_ordered_methods(methods, max_order)
 
-    count_b = max_b - 2 if all_bs else 1
+    count_b = len(bs)
 
     results = {
         "samples": np.zeros((len(explicands), count_b)),
@@ -86,9 +85,9 @@ def faithfulness(explicands, model, methods, max_b, all_bs, max_order, num_test_
 
         # Sample explanation function for choice of max b
         sampling_time_start = time.time()
-        spex_signal, num_samples = sampling_strategy(sampling_function, max_b, n, save_dir)
+        spex_signal, num_samples = sampling_strategy(sampling_function, max(bs), n, save_dir)
         sampling_time = time.time() - sampling_time_start
-        results["samples"][i, :] = num_samples if all_bs else num_samples[-1]
+        results["samples"][i, :] = [num_samples[b-3] for b in bs]
 
         # Draws an equal number of uniform samples
         active_sampler_dict = {"spex": spex_signal}
@@ -96,9 +95,8 @@ def faithfulness(explicands, model, methods, max_b, all_bs, max_order, num_test_
             if sampler != "spex":
                 active_sampler_dict[sampler] = AlternativeSampler(sampler, sampling_function, spex_signal, n)
 
-        for b in range(3 if all_bs else max_b, max_b + 1):
+        for j, b in enumerate(bs):
             print(f"b = {b}")
-            j = b - 3 if all_bs else 0
             for method, order in ordered_methods:
                 method_str = f'{method}_{order}'
                 samples = active_sampler_dict[SAMPLER_DICT[method]]
@@ -130,8 +128,7 @@ if __name__ == "__main__":
     DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
     NUM_EXPLAIN = 10  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods
-    MAX_B = 8  # the maximum sparsity parameter, which scales samples taken ~15 * 2^B * log(number of features)
-    ALL_Bs = False  # uses different sparsity parameters b from 3 to MAX_B
+    Bs = [4, 6, 8]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
     NUM_TEST_SAMPLES = 1000  # number of uniformly drawn test samples to measure faithfulness
 
     # marginal attribution methods: shapley, banzhaf, lime
@@ -146,7 +143,7 @@ if __name__ == "__main__":
 
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
 
-    results = faithfulness(explicands, model, METHODS, MAX_B, ALL_Bs, MAX_ORDER, NUM_TEST_SAMPLES)
+    results = faithfulness(explicands, model, METHODS, Bs, MAX_ORDER, NUM_TEST_SAMPLES)
 
     if not os.path.exists('results/'):
         os.makedirs('results/')

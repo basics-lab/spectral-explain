@@ -141,12 +141,26 @@ def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtra
     return differences, subtracted_locs
 
 
-def removal(explicands, model, methods, max_b, all_bs, max_order, subtract_dist):
+def removal(explicands, model, methods, bs, max_order, subtract_dist):
+    """
+    Evaluate the feature removal ability of different explanation methods.
+
+    Parameters:
+    - explicands: The explicands to explain.
+    - model: The model to use for inference.
+    - methods: The list of attribution methods to evaluate.
+    - bs: The list of sparsity parameters to use.
+    - max_order: The maximum order of baseline interaction methods.
+    - subtract_dist: The maximum number of features to subtract.
+
+    Returns:
+    - results. A python dictionary with removal results.
+    """
     sampler_set = set([SAMPLER_DICT[method] for method in methods])
 
     ordered_methods = get_ordered_methods(methods, max_order)
 
-    count_b = max_b - 2 if all_bs else 1
+    count_b = len(bs)
 
     results = {
         "samples": np.zeros((len(explicands), count_b)),
@@ -169,8 +183,8 @@ def removal(explicands, model, methods, max_b, all_bs, max_order, subtract_dist)
         save_dir = 'samples/' + unix_time_seconds
 
         # Sample explanation function for choice of max b
-        spex_signal, num_samples = sampling_strategy(sampling_function, max_b, n, save_dir)
-        results["samples"][i, :] = num_samples if all_bs else num_samples[-1]
+        spex_signal, num_samples = sampling_strategy(sampling_function, max(bs), n, save_dir)
+        results["samples"][i, :] = [num_samples[b-3] for b in bs]
 
         # Draws an equal number of uniform samples
         active_sampler_dict = {"spex": spex_signal}
@@ -178,9 +192,8 @@ def removal(explicands, model, methods, max_b, all_bs, max_order, subtract_dist)
             if sampler != "spex":
                 active_sampler_dict[sampler] = AlternativeSampler(sampler, sampling_function, spex_signal, n)
 
-        for b in range(3 if all_bs else max_b, max_b + 1):
+        for j, b in enumerate(bs):
             print(f"b = {b}")
-            j = b - 3 if all_bs else 0
             for method, order in ordered_methods:
                 method_str = f'{method}_{order}'
                 print(method_str)
@@ -217,8 +230,7 @@ if __name__ == "__main__":
     DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
     NUM_EXPLAIN = 500  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods
-    MAX_B = 8  # the maximum sparsity parameter, which scales samples taken ~15 * 2^B * log(number of features)
-    ALL_Bs = False  # uses different sparsity parameters b from 3 to MAX_B
+    Bs = [4, 6, 8]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
     SUBTRACT_DIST = 10  # the maximum number of features to subtract
 
     # marginal attribution methods: shapley, banzhaf, lime
@@ -233,7 +245,7 @@ if __name__ == "__main__":
 
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
 
-    results = removal(explicands, model, METHODS, MAX_B, ALL_Bs, MAX_ORDER, SUBTRACT_DIST)
+    results = removal(explicands, model, METHODS, Bs, MAX_ORDER, SUBTRACT_DIST)
 
     if not os.path.exists('results/'):
         os.makedirs('results/')
