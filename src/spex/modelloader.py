@@ -211,7 +211,7 @@ def get_model(task, num_explain=10, device=None):
     model = {
         "parkinsons": MLPClassification,
         "cancer": MLPClassification,
-        "sentiment": Reviews,
+        "sentiment": Sentiment,
         "puzzles": Puzzles
     }.get(task, NotImplementedError())(task, num_explain, device)
 

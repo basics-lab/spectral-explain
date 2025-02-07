@@ -1,13 +1,11 @@
 from spex.support_recovery import support_recovery
-from spex.qsft.qsft import fit_regression
-from spex.qsft.utils import qary_ints_low_order
-from spex.utils import mobius_to_fourier
+from spex.utils import mobius_to_fourier, fit_regression, bin_vecs_low_order
 import numpy as np
 import shapiq
 import lime.lime_tabular
 import warnings
-warnings.filterwarnings("ignore")
 
+warnings.filterwarnings("ignore")
 
 SAMPLER_DICT = {
     "spex_hard": "spex",
@@ -17,18 +15,21 @@ SAMPLER_DICT = {
     "lime": "dummy",  # will use sampling from lime later on
     "faith_shapley": "dummy",  # will use sampling from Shap-IQ later on
     "faith_banzhaf": "uniform",
-    "shapley_taylor": "dummy" # will use sampling from Shap-IQ later on
+    "shapley_taylor": "dummy"  # will use sampling from Shap-IQ later on
 }
+
 
 def spex_hard(signal, b, order=5, **kwargs):
     return support_recovery("hard", signal, b, t=order)["transform"]
 
+
 def spex_soft(signal, b, order=5, **kwargs):
     return support_recovery("soft", signal, b, t=order)["transform"]
 
+
 def LIME(signal, b, **kwargs):
     training_data = np.zeros((2, signal.n))
-    training_data[1,:] = np.ones(signal.n)
+    training_data[1, :] = np.ones(signal.n)
     lime_explainer = lime.lime_tabular.LimeTabularExplainer(training_data, mode='regression',
                                                             categorical_features=range(signal.n),
                                                             kernel_width=25)  # used in LimeTextExplainer
@@ -43,10 +44,11 @@ def LIME(signal, b, **kwargs):
         output[tuple(ohe_loc)] = val
     return mobius_to_fourier(output)
 
+
 def shapley(signal, b, **kwargs):
     explainer = shapiq.Explainer(
         model=signal.sampling_function,
-        data=np.zeros((1,signal.n)),
+        data=np.zeros((1, signal.n)),
         index="SV",
         max_order=1
     )
@@ -58,14 +60,17 @@ def shapley(signal, b, **kwargs):
             loc[ele] = 1
         shapley_dict[tuple(loc)] = shapley.values[ref]
     return mobius_to_fourier(shapley_dict)
-def banzhaf(signal, b,  **kwargs):
-    return fit_regression('ridge', {'locations': qary_ints_low_order(signal.n, 2, 1).T}, signal, signal.n, b,
+
+
+def banzhaf(signal, b, **kwargs):
+    return fit_regression('ridge', {'locations': bin_vecs_low_order(signal.n, 2, 1).T}, signal, signal.n, b,
                           fourier_basis=False)[0]
+
 
 def faith_shapley(signal, b, order=1, **kwargs):
     explainer = shapiq.Explainer(
         model=signal.sampling_function,
-        data=np.zeros((1,signal.n)),
+        data=np.zeros((1, signal.n)),
         index="FSII",
         max_order=order,
     )
@@ -78,14 +83,16 @@ def faith_shapley(signal, b, order=1, **kwargs):
         fsii_dict[tuple(loc)] = fsii.values[ref]
     return mobius_to_fourier(fsii_dict)
 
+
 def faith_banzhaf(signal, b, order=1, **kwargs):
-    return fit_regression('ridge', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b,
+    return fit_regression('ridge', {'locations': bin_vecs_low_order(signal.n, 2, order).T}, signal, signal.n, b,
                           fourier_basis=False)[0]
+
 
 def shapley_taylor(signal, b, order=1, **kwargs):
     explainer = shapiq.Explainer(
         model=signal.sampling_function,
-        data=np.zeros((1,signal.n)),
+        data=np.zeros((1, signal.n)),
         index="STII",
         max_order=order,
     )
@@ -110,6 +117,7 @@ def get_ordered_methods(methods, max_order):
             # spex methods use maximum order 5
             ordered_methods.append((method, 5))
     return ordered_methods
+
 
 class AlternativeSampler:
     def __init__(self, type, sampling_function, qsft_signal, n):

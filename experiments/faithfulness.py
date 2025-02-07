@@ -126,7 +126,7 @@ def faithfulness(explicands, model, methods, max_b, all_bs, max_order, num_test_
 
 if __name__ == "__main__":
     numba.set_num_threads(8)
-    TASK = 'puzzles'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, vision
+    TASK = 'cancer'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, vision
     DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
     NUM_EXPLAIN = 10  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods
@@ -140,7 +140,6 @@ if __name__ == "__main__":
     METHODS = ['shapley', 'banzhaf', 'lime',
                'faith_banzhaf', 'faith_shapley', 'shapley_taylor',
                'spex_hard', 'spex_soft']
-    METHODS = ['shapley', 'spex_hard', 'spex_soft']
 
     if DEVICE == 'cuda':
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"

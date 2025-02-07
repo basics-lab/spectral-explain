@@ -1,16 +1,4 @@
-import numba
-import numpy as np
-
-from spex.modelloader import get_model
-from spex.support_recovery import sampling_strategy, support_recovery
-from experiment_utils import *
-import pickle
-import time
-import os
 from math import prod
-import shutil
-import cProfile
-import pstats
 import numba
 import pickle
 import time
@@ -18,7 +6,6 @@ import os
 import shutil
 from spex.modelloader import get_model
 from spex.support_recovery import sampling_strategy
-from spex.utils import *
 from experiment_utils import *
 
 

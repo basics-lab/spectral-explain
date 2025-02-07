@@ -1,11 +1,14 @@
-from spex.qsft.query import get_bch_decoder
-from spex.qsft.qsft import transform
-from spex.qsft.input_signal_subsampled import SubsampledSignal
+from sparse_transform.qsft.qsft import transform
+from sparse_transform.qsft.codes.BCH import BCH
+from sparse_transform.qsft.signals.input_signal_subsampled import SubsampledSignal
+from functools import partial
 
 def get_num_samples(signal, b):
+    # Calculates the number of samples taken for the given sparsity parameter b
     return len(signal.all_samples) * len(signal.all_samples[0]) * (2 ** b)
 
 def sampling_strategy(sampling_function, max_b, n, sample_save_dir, t=5):
+    # takes samples for SPEX using BCH code defined in sparse_transform.qsft
     bs = list(range(3, max_b + 1))
     query_args = {
         "query_method": "complex",
@@ -24,14 +27,20 @@ def sampling_strategy(sampling_function, max_b, n, sample_save_dir, t=5):
 
 
 def support_recovery(type, signal, b, t=5):
+    # Performs support recovery using decoding methods in sparse_transform.qsft
+    # hard decoding is quicker, but soft decoding gives better recovery
+    if type == "hard":
+        source_decoder = BCH(signal.n, t).parity_decode
+    else:
+        source_decoder = partial(BCH(signal.n, t).parity_decode_2chase_t2_max_likelihood,
+                                chase_depth=2*t)
     qsft_args = {
         "num_subsample": 3,
         "num_repeat": 1,
         "reconstruct_method_source": "coded",
         "reconstruct_method_channel": "identity-siso" if type != "hard" else "identity",
         "b": b,
-        "source_decoder": get_bch_decoder(signal.n, t, dectype="ml-soft-t2" if type != "hard" else "hard",
-                                          chase_depth=2 * t),
+        "source_decoder": source_decoder,
         "peeling_method": "multi-detect",
         "noise_sd": 0,
         "regress": 'lasso',
@@ -41,5 +50,4 @@ def support_recovery(type, signal, b, t=5):
         "report": True,
         "peel_average": True,
     }
-    res = transform(signal, **qsft_args)
-    return res
+    return transform(signal, **qsft_args)
