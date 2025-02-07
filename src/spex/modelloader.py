@@ -1,16 +1,11 @@
 import numpy as np
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from transformers import pipeline
-from transformers import LongformerTokenizer, LongformerForMultipleChoice
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModel
-import torch.nn.functional as F
 import torch
 from tqdm import tqdm
 from spex.dataloader import get_dataset
 from openai import OpenAI
 import os
-import time
-import json
 
 class MLPRegression:
     """
@@ -37,7 +32,7 @@ class MLPRegression:
         return self.train_X.shape[1]
 
     def inference(self, X):
-        return self.trained_model.predict(np.where(X, self.explicand, self.masker.data.flatten()))
+        return self.trained_model.predict(np.where(X, self.explicand))
 
 
 class MLPClassification:
@@ -65,7 +60,7 @@ class MLPClassification:
         return self.train_X.shape[1]
 
     def inference(self, X):
-        X = np.where(X, self.explicand, self.masker.data.flatten())
+        X = np.where(X, self.explicand, self.masker)
         if len(X.shape) == 1:
             X = X[None, :]
         predictions = self.trained_model.predict_proba(X)[:, 1]

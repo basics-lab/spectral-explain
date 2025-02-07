@@ -1,4 +1,3 @@
-import shap
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import openml
@@ -33,18 +32,6 @@ class TabularDataset:
     def __init__(self):
         self.train_X = None
 
-    def _get_masker(self, masker_type):
-        return shap.maskers.Independent({
-                                            "baseline_sample": self.train_X[0].reshape(
-                                                (1, self.train_X.shape[1])),
-                                            "baseline_median": np.median(self.train_X, axis=0).reshape(
-                                                (1, self.train_X.shape[1])),
-                                            "baseline_mean": np.mean(self.train_X, axis=0).reshape(
-                                                (1, self.train_X.shape[1])),
-                                            "baseline_zeros": np.zeros((1, self.train_X.shape[1])),
-                                            "marginal": self.train_X,
-                                        }.get(masker_type, NotImplementedError()))
-
     def retrieve(self, num_explain):
         self.load()
         if num_explain > self.test_X.shape[0]:
@@ -67,12 +54,11 @@ class Parkinsons(TabularDataset):
         self.task_type = 'classification'
 
     def load(self):
-        masker_type = "baseline_mean"
         dataset = openml.datasets.get_dataset(42176)
         X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
         self.train_X, self.test_X, self.train_y, self.test_y = scaler_classification(
             *train_test_split(X, y, test_size=0.2, random_state=0))
-        self.masker = self._get_masker(masker_type)
+        self.masker = np.mean(self.train_X, axis=0)
 
 
 class Cancer(TabularDataset):
@@ -89,13 +75,12 @@ class Cancer(TabularDataset):
         self.task_type = 'classification'
 
     def load(self):
-        masker_type = "baseline_mean"
         dataset = openml.datasets.get_dataset(1510)
         X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
         y = y.map(pd.Series({'1': 0, '2': 1}))
         self.train_X, self.test_X, self.train_y, self.test_y = scaler_classification(
             *train_test_split(X, y, test_size=0.2, random_state=0))
-        self.masker = self._get_masker(masker_type)
+        self.masker = np.mean(self.train_X, axis=0)
 
 class TextDataset:
     """
