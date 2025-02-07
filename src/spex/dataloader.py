@@ -12,7 +12,6 @@ def scaler_classification(X_train, X_test, y_train, y_test):
     X_test = s.transform(X_test)
     return X_train, X_test, y_train.to_numpy(), y_test.to_numpy()
 
-
 def scaler_regression(X_train, X_test, y_train, y_test):
     s = StandardScaler()
     X_train = s.fit_transform(X_train)
@@ -23,10 +22,14 @@ def scaler_regression(X_train, X_test, y_train, y_test):
     y_test = t.transform(y_test.to_numpy().reshape(-1, 1)).ravel()
     return X_train, X_test, y_train, y_test
 
-
 class TabularDataset:
-    """Class for any dataset."""
+    """
+    Class for handling tabular datasets.
 
+    Methods:
+    - _get_masker(masker_type): Get the masker for the dataset.
+    - retrieve(num_explain): Retrieve the dataset and masker.
+    """
     def __init__(self):
         self.train_X = None
 
@@ -42,7 +45,7 @@ class TabularDataset:
                                             "marginal": self.train_X,
                                         }.get(masker_type, NotImplementedError()))
 
-    def retrieve(self, num_explain, mini):
+    def retrieve(self, num_explain):
         self.load()
         if num_explain > self.test_X.shape[0]:
             print(f'num_explain > test set size. Explaining all {self.test_X.shape[0]} test samples instead.')
@@ -51,10 +54,13 @@ class TabularDataset:
 
 
 class Parkinsons(TabularDataset):
-    """Large classification dataset (753 features) based on speech data.
-    https://www.openml.org/search?type=data&id=42176&sort=runs&status=active
     """
+    Large classification dataset (753 features) based on speech data.
+    https://www.openml.org/search?type=data&id=42176&sort=runs&status=active
 
+    Methods:
+    - load(): Load the dataset.
+    """
     def __init__(self):
         super().__init__()
         self.name = 'parkinsons'
@@ -70,10 +76,13 @@ class Parkinsons(TabularDataset):
 
 
 class Cancer(TabularDataset):
-    """Medium classification dataset (30 features) to predict breast cancer prognosis.
-    https://www.openml.org/search?type=data&sort=runs&id=1510&status=active
     """
+    Medium classification dataset (30 features) to predict breast cancer prognosis.
+    https://www.openml.org/search?type=data&sort=runs&id=1510&status=active
 
+    Methods:
+    - load(): Load the dataset.
+    """
     def __init__(self):
         super().__init__()
         self.name = 'cancer'
@@ -89,38 +98,44 @@ class Cancer(TabularDataset):
         self.masker = self._get_masker(masker_type)
 
 class TextDataset:
-    """Class for any dataset."""
+    """
+    Class for handling text datasets.
 
+    Methods:
+    - retrieve(num_explain): Retrieve the dataset.
+    """
     def __init__(self):
         self.documents = None
 
-    def retrieve(self, num_explain, mini):
-        self.load(mini)
+    def retrieve(self, num_explain):
+        self.load()
         if num_explain > len(self.documents):
             print(f'num_explain > test set size. Explaining all {len(self.documents)} test samples instead.')
             num_explain = len(self.documents)
         return self.documents[:num_explain]
 
 
-class Reviews(TextDataset):
-    """160 movie reviews from
+class Sentiment(TextDataset):
+    """
+    160 movie reviews from these two sources:
     https://www.kaggle.com/datasets/lakshmi25npathi/imdb-dataset-of-50k-movie-reviews?resource=download
     https://nlp.stanford.edu/sentiment/
-    """
 
+    Methods:
+    - load(): Load the dataset.
+    """
     def __init__(self):
         super().__init__()
         self.name = 'IMDBReviews'
 
-    def load(self, mini):
+    def load(self):
         self.documents = []
-        filename = 'data/sentiment_mini.csv' if mini else 'data/sentiment.csv'
+        filename = 'data/sentiment.csv'
 
         reviews = pd.read_csv(filename)['review']
         dataset = []
         for r in reviews:
             dataset.append(r[1:-1])
-
 
         for document in tqdm(dataset):
             filtered_sentence = document.split()
@@ -133,19 +148,22 @@ class Reviews(TextDataset):
                 cursor += loc + len(w)
             self.documents.append({'original': document, 'input': filtered_sentence, 'locations': locations})
 
-class Riddles(TextDataset):
-    """10 'fake' riddles from
+class Puzzles(TextDataset):
+    """
+    10 'fake' riddles from:
     https://github.com/autogenai/easy-problems-that-llms-get-wrong
     https://arxiv.org/abs/2405.19616
-    """
 
+    Methods:
+    - load(): Load the dataset.
+    """
     def __init__(self):
         super().__init__()
         self.name = 'Riddles'
 
-    def load(self, mini):
+    def load(self):
         self.documents = []
-        filename = 'data/riddles.csv'
+        filename = 'data/puzzles.csv'
 
         riddles = pd.read_csv(filename)
         contexts = []
@@ -166,11 +184,19 @@ class Riddles(TextDataset):
 
 
 def get_dataset(dataset, num_explain):
-    mini = "mini" in dataset
+    """
+    Get the dataset and masking pattern for the specified task.
+
+    Parameters:
+    - dataset: The name of the dataset.
+    - num_explain: The number of examples to explain.
+
+    Returns:
+    - A tuple containing the training features, and masking pattern.
+    """
     return {
         "parkinsons": Parkinsons,
         "cancer": Cancer,
-        "sentiment": Reviews,
-        "sentiment_mini": Reviews,
-        "riddles": Riddles
-    }.get(dataset, NotImplementedError())().retrieve(num_explain, mini)
+        "sentiment": Sentiment,
+        "puzzles": Puzzles
+    }.get(dataset, NotImplementedError())().retrieve(num_explain)

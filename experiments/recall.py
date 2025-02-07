@@ -6,12 +6,12 @@ import os
 import shutil
 import cProfile
 import pstats
-from spectral_explain.models.modelloader import get_model
-from spectral_explain.utils import estimate_r2, fourier_to_mobius
-from spectral_explain.qsft.qsft import fit_regression
-from spectral_explain.qsft.utils import qary_ints_low_order, qary_ints, gwht
+from spex.models.modelloader import get_model
+from spex.utils import estimate_r2, fourier_to_mobius
+from spex.qsft.qsft import fit_regression
+from spex.qsft.utils import qary_ints_low_order, qary_ints, gwht
 from experiment_utils import qsft_soft, Alternative_Sampler, linear
-from spectral_explain.support_recovery import sampling_strategy
+from spex.support_recovery import sampling_strategy
 import itertools
 import matplotlib.pyplot as plt
 from scipy import stats

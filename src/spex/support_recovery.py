@@ -1,6 +1,6 @@
-from spectral_explain.qsft.query import get_bch_decoder
-from spectral_explain.qsft.qsft import transform
-from spectral_explain.qsft.input_signal_subsampled import SubsampledSignal
+from spex.qsft.query import get_bch_decoder
+from spex.qsft.qsft import transform
+from spex.qsft.input_signal_subsampled import SubsampledSignal
 
 def get_num_samples(signal, b):
     return len(signal.all_samples) * len(signal.all_samples[0]) * (2 ** b)

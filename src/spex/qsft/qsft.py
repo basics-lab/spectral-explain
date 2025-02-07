@@ -1,20 +1,15 @@
 import time
 
 import numpy as np
-# from scipy.special import result
-
 from .reconstruct import singleton_detection
 from .input_signal_subsampled import SubsampledSignal
 from .utils import qary_vec_to_dec, sort_qary_vecs, calc_hamming_weight, dec_to_qary_vec, qary_ints_low_order
 import logging
-from sklearn.linear_model import LinearRegression, OrthogonalMatchingPursuit
-from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV
 from functools import partial
 import random
 import copy
-from spectral_explain.baselines.amp.AMPSolver import AMPSolver
-from spectral_explain.utils import mobius_to_fourier, fourier_to_mobius
-from celer import LassoCV
+from spex.utils import mobius_to_fourier, fourier_to_mobius
 
 logger = logging.getLogger(__name__)
 
@@ -314,11 +309,7 @@ def transform(signal: SubsampledSignal,
         }
         regress_start = time.time()
         if regress is not None:
-            if regress in ["freq_domain", "freq_domain_lasso"]:
-                new_transform_dict, _ = freq_domain_regression(result, signal, n, b, initial_Us, Ms, Ds, Us,
-                                                               lasso=regress == "freq_domain_lasso")
-            else:
-                new_transform_dict, _ = fit_regression(regress, result, signal, n, b)
+            new_transform_dict, _ = fit_regression(regress, result, signal, n, b)
             result['transform'] = new_transform_dict
             logger.info(f"Regression Time:{time.time() - regress_start}")
         return result
@@ -370,7 +361,7 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=
     Returns:
     tuple: A tuple containing the regression coefficients and the support locations.
     """
-    assert type in ['linear', 'lasso', 'shapley']
+    assert type in ['linear', 'ridge', 'lasso']
     if coordinates is None and values is None:
         coordinates = []
         values = []
@@ -388,8 +379,8 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=
     else:
         support = results['locations']
 
-    # add null coefficient if not contained
-    support = np.vstack([support, np.zeros(n)])
+    # add null and linear coefficients if not contained
+    support = np.vstack([support, np.zeros(n), np.eye(n)])
     support = np.unique(support, axis=0)
     if fourier_basis:
         X = np.real(np.exp(coordinates @ (1j * np.pi * support.T)))
@@ -399,16 +390,11 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=
 
     if type == 'linear':
         reg = LinearRegression(fit_intercept=False).fit(X, values)
-        coefs = reg.coef_
     elif type == 'lasso':
-        reg = LassoCV(fit_intercept=False, n_alphas=10).fit(X, values)
-        coefs = reg.coef_
-    elif type == 'shapley':
-        # the first two sampled values correspond to the all 0's and all 1's queries. These should hold with equality.
-        reg = LassoCV(fit_intercept=False, n_alphas=10).fit(X, values,
-                                                            sample_weight=[1000000 if i < 2 else 1 for i in
-                                                                           range(len(values))])
-        coefs = reg.coef_
+        reg = LassoCV(fit_intercept=False).fit(X, values)
+    else:
+        reg = RidgeCV(fit_intercept=False).fit(X, values)
+    coefs = reg.coef_
 
     regression_coefs = {}
     for coef in range(support.shape[0]):
@@ -419,159 +405,3 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=
         regression_coefs = mobius_to_fourier(regression_coefs)
 
     return regression_coefs, support
-
-
-def freq_domain_regression(type, results, signal, n, b, Us, Ms, Ds, res_Us):
-    """
-    Perform frequency domain regression to refine the results of the QSFT algorithm.
-
-    This function takes the results of the QSFT algorithm and refines them using a regression
-    approach in the frequency domain. It builds a measurement matrix and a vector of observations,
-    then fits a linear regression model to estimate the coefficients corresponding to the support
-    locations.
-
-    Parameters:
-    results (dict): The initial results from the QSFT algorithm, including the locations of non-zero indices.
-    signal (SubsampledSignal): The original signal object that was transformed.
-    n (int): The length of the signal.
-    b (int): The number of bits used in the QSFT algorithm.
-    Us (list): A list of matrices representing the subsampled signal in the frequency domain.
-    Ms (list): A list of matrices used in the QSFT algorithm.
-    Ds (list): A list of matrices used in the QSFT algorithm.
-    res_Us (list): A list of residual matrices used in the regression process.
-
-    Returns:
-    dict: A dictionary containing the refined coefficients for the support locations.
-    np.ndarray: An array of the support locations.
-    """
-    # Preprocess data
-    if len(results['locations']) == 0:
-        support = np.zeros((1, n))
-    else:
-        support = results['locations']
-
-    # add null coefficient if not contained
-    support = np.vstack([support, np.zeros(n)])
-    support = np.unique(support, axis=0)
-
-    # Pre-process the data
-    k_to_idx = {}
-    connected_variables = {}
-    for idx, k in enumerate(support):
-        for i, M in enumerate(Ms):
-            j = qary_vec_to_dec(M.T.dot(k) % 2, 2)
-            connected_variables[(i, j)] = connected_variables.get((i, j), []) + [k]
-        k_to_idx[tuple(k)] = idx
-    num_measurements = len(Us) * Us[0].shape[0] * Us[0].shape[1]
-    num_variables = len(support)
-    num_bin_samples = Us[0].shape[0]
-    num_group_samples = Us[0].shape[0] * Us[0].shape[1]
-
-    # Build the measurement matrix A and the vector b
-    A = np.zeros(shape=(num_measurements, num_variables))
-    b = np.zeros(shape=(num_measurements,))
-    weights = np.ones(shape=(num_measurements,))
-    for i, (U, M, D, res_U) in enumerate(zip(Us, Ms, Ds, res_Us)):
-        for j, col in enumerate(U.T):
-            res = np.real(res_U[:, j])
-            b_part = np.real(col)
-            start_idx = i * num_group_samples + j * num_bin_samples
-            end_idx = start_idx + num_bin_samples
-            b[start_idx:end_idx] = b_part
-            weights[start_idx:end_idx] = np.var(res)
-            vars = connected_variables.get((i, j), [])
-            if not vars:
-                continue
-            vars_np = np.array(vars)
-            var_idx = [k_to_idx[tuple(var)] for var in vars]
-            A_part = (-1) ** (D @ vars_np.T)
-            A[start_idx:end_idx, var_idx] = A_part
-
-    if type == "freq_domain_lasso":
-        lasso_parameters = {
-            'alpha': [0.000001, 0.00005, 0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
-        }
-        clf = GridSearchCV(Lasso(fit_intercept=False), param_grid=lasso_parameters, cv=5,
-                           scoring='neg_mean_squared_error')
-        clf.fit(A, b, sample_weight=1 / weights)
-        reg = clf.best_estimator_
-    else:
-        reg = LinearRegression(fit_intercept=False).fit(A, b, sample_weight=1 / weights)
-
-    regression_coefs = {}
-    for coef in range(support.shape[0]):
-        regression_coefs[tuple(support[coef, :].astype(int))] = reg.coef_[coef]
-    return regression_coefs, support
-
-
-def transform_via_omp(signal, b, order):
-    """
-    Transforms the given signal using Orthogonal Matching Pursuit (OMP).
-
-    Parameters:
-    signal (SubsampledSignal): The signal object to be transformed.
-    b (int): The number of bits used in the transformation.
-    order (int): The order of the q-ary integers to be used.
-
-    Returns:
-    dict: A dictionary containing the support locations and their corresponding coefficients.
-    """
-    start_time = time.time()
-    coordinates = []
-    values = []
-    for m in range(len(signal.all_samples)):
-        for d in range(len(signal.all_samples[0])):
-            for z in range(2 ** b):
-                coordinates.append(signal.all_queries[m][d][z])
-                values.append(np.real(signal.all_samples[m][d][z]))
-
-    coordinates = np.array(coordinates)
-    values = np.array(values)
-    support = qary_ints_low_order(m=signal.n, q=signal.q, order=order).astype(int).T
-    X = np.real(np.exp(coordinates @ (1j * np.pi * support.T)))
-    omp = OrthogonalMatchingPursuit()
-    omp.fit(X, values)
-    coefficients = omp.coef_
-    result = {}
-    result['transform'] = {tuple(support[i]): coefficients[i] for i in range(len(coefficients)) if coefficients[i] != 0}
-    result['runtime'] = time.time() - start_time
-    result['n_samples'] = len(values)
-    result['locations'] = result['transform'].keys()
-    return result
-
-
-def transform_via_amp(signal, b, order):
-    """
-    Transforms the given signal using Approximate Message Passing (AMP).
-
-    Parameters:
-    signal (SubsampledSignal): The signal object to be transformed.
-    b (int): The number of bits used in the transformation.
-    order (int): The order of the q-ary integers to be used.
-
-    Returns:
-    dict: A dictionary containing the support locations and their corresponding coefficients.
-    """
-    start_time = time.time()
-    coordinates = []
-    values = []
-    for m in range(len(signal.all_samples)):
-        for d in range(len(signal.all_samples[0])):
-            for z in range(2 ** b):
-                coordinates.append(signal.all_queries[m][d][z])
-                values.append(np.real(signal.all_samples[m][d][z]))
-
-    coordinates = np.array(coordinates)
-    values = np.array(values)
-    support = qary_ints_low_order(m=signal.n, q=signal.q, order=order).astype(int).T
-    X = np.real(np.exp(coordinates @ (1j * np.pi * support.T)))
-
-    amp_solver = AMPSolver(A=X, y=values, regularization_strength=0.1, dumping_coefficient=0.5)
-    amp_solver.solve()
-    coefficients = amp_solver.r
-    result = {}
-    result['transform'] = {tuple(support[i]): coefficients[i] for i in range(len(coefficients)) if coefficients[i] != 0}
-    result['runtime'] = time.time() - start_time
-    result['n_samples'] = len(values)
-    result['locations'] = result['transform'].keys()
-    return result

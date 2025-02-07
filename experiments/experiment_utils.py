@@ -1,9 +1,8 @@
-from spectral_explain.support_recovery import support_recovery
-from spectral_explain.qsft.qsft import fit_regression
-from spectral_explain.qsft.utils import qary_ints_low_order
-from spectral_explain.utils import mobius_to_fourier, fourier_to_mobius
+from spex.support_recovery import support_recovery
+from spex.qsft.qsft import fit_regression
+from spex.qsft.utils import qary_ints_low_order
+from spex.utils import mobius_to_fourier
 import numpy as np
-import time
 import shapiq
 import lime.lime_tabular
 import warnings
@@ -11,16 +10,21 @@ warnings.filterwarnings("ignore")
 
 
 SAMPLER_DICT = {
-    "qsft_hard": "qsft",
-    "qsft_soft": "qsft",
-    "linear": "uniform",
-    "lasso": "uniform",
-    "lime": "dummy", # will use sampling from lime later on
-    "faith_shapley": "dummy",  # will use sampling from Shap-IQ later on
+    "spex_hard": "spex",
+    "spex_soft": "spex",
     "shapley": "dummy",  # will use sampling from Shap-IQ later on
     "banzhaf": "uniform",
-    "shapley_taylor": "dummy"
+    "lime": "dummy",  # will use sampling from lime later on
+    "faith_shapley": "dummy",  # will use sampling from Shap-IQ later on
+    "faith_banzhaf": "uniform",
+    "shapley_taylor": "dummy" # will use sampling from Shap-IQ later on
 }
+
+def spex_hard(signal, b, order=5, **kwargs):
+    return support_recovery("hard", signal, b, t=order)["transform"]
+
+def spex_soft(signal, b, order=5, **kwargs):
+    return support_recovery("soft", signal, b, t=order)["transform"]
 
 def LIME(signal, b, **kwargs):
     training_data = np.zeros((2, signal.n))
@@ -32,19 +36,31 @@ def LIME(signal, b, **kwargs):
                                                   num_samples=signal.num_samples(b),
                                                   num_features=signal.n,
                                                   distance_metric='cosine')  # used in LimeTextExplainer
-    output = {}
-    output[tuple([0] * signal.n)] = lime_values.intercept[1]
+    output = {tuple([0] * signal.n): lime_values.intercept[1]}
     for loc, val in lime_values.local_exp[1]:
         ohe_loc = [0] * signal.n
         ohe_loc[loc] = 1
         output[tuple(ohe_loc)] = val
     return mobius_to_fourier(output)
 
-def linear(signal, b, order=1, **kwargs):
-    return fit_regression('linear', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b)[0]
-
-def lasso(signal, b, order=1, **kwargs):
-    return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b)[0]
+def shapley(signal, b, **kwargs):
+    explainer = shapiq.Explainer(
+        model=signal.sampling_function,
+        data=np.zeros((1,signal.n)),
+        index="SV",
+        max_order=1
+    )
+    shapley = explainer.explain(np.ones((1, signal.n)), budget=signal.num_samples(b))
+    shapley_dict = {}
+    for interaction, ref in shapley.interaction_lookup.items():
+        loc = [0] * signal.n
+        for ele in interaction:
+            loc[ele] = 1
+        shapley_dict[tuple(loc)] = shapley.values[ref]
+    return mobius_to_fourier(shapley_dict)
+def banzhaf(signal, b,  **kwargs):
+    return fit_regression('ridge', {'locations': qary_ints_low_order(signal.n, 2, 1).T}, signal, signal.n, b,
+                          fourier_basis=False)[0]
 
 def faith_shapley(signal, b, order=1, **kwargs):
     explainer = shapiq.Explainer(
@@ -62,6 +78,10 @@ def faith_shapley(signal, b, order=1, **kwargs):
         fsii_dict[tuple(loc)] = fsii.values[ref]
     return mobius_to_fourier(fsii_dict)
 
+def faith_banzhaf(signal, b, order=1, **kwargs):
+    return fit_regression('ridge', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b,
+                          fourier_basis=False)[0]
+
 def shapley_taylor(signal, b, order=1, **kwargs):
     explainer = shapiq.Explainer(
         model=signal.sampling_function,
@@ -78,59 +98,18 @@ def shapley_taylor(signal, b, order=1, **kwargs):
         stii_dict[tuple(loc)] = stii.values[ref]
     return mobius_to_fourier(stii_dict)
 
-def qsft_hard(signal, b, t=5, **kwargs):
-    return support_recovery("hard", signal, b, t=t)["transform"]
 
-
-def qsft_soft(signal, b, t=5, **kwargs):
-    return support_recovery("soft", signal, b, t=t)["transform"]
-
-def shapley(signal, b, **kwargs):
-    explainer = shapiq.Explainer(
-        model=signal.sampling_function,
-        data=np.zeros((1,signal.n)),
-        index="SV",
-        max_order=1
-    )
-    shapley = explainer.explain(np.ones((1, signal.n)), budget=signal.num_samples(b))
-    shapley_dict = {}
-    for interaction, ref in shapley.interaction_lookup.items():
-        loc = [0] * signal.n
-        for ele in interaction:
-            loc[ele] = 1
-        shapley_dict[tuple(loc)] = shapley.values[ref]
-    return mobius_to_fourier(shapley_dict)
-
-
-
-def banzhaf(signal, b, **kwargs):
-    # maximum sample reuse strategy from
-    # Eq (5) of Data Banzhaf: https://arxiv.org/pdf/2205.15466
-    coordinates = []
-    values = []
-    for m in range(len(signal.all_samples)):
-        for d in range(len(signal.all_samples[0])):
-            for z in range(2 ** b):
-                coordinates.append(signal.all_queries[m][d][z])
-                values.append(np.real(signal.all_samples[m][d][z]))
-    null_value = signal.sampling_function([[0]*signal.n]).item()
-    coordinates = np.array(coordinates)
-    values = np.array(values) - null_value
-
-    banzhaf_dict = {}
-    for idx in range(signal.n):
-        mask = coordinates[:, idx] > 0.5
-        not_mask = np.logical_not(mask)
-        if sum(mask) == 0 or sum(mask) == len(coordinates):
-            banzhaf_value_idx = 0
+def get_ordered_methods(methods, max_order):
+    ordered_methods = []
+    for method in methods:
+        if method in ['shapley', 'banzhaf', 'lime']:
+            ordered_methods.append((method, 1))
+        elif method in ['faith_banzhaf', 'faith_shapley', 'shapley_taylor']:
+            ordered_methods += [(method, order) for order in range(2, max_order + 1)]
         else:
-            banzhaf_value_idx = ((1 / np.sum(mask)) * np.sum(values[mask])) - ((1 / np.sum(not_mask)) * np.sum(values[not_mask]))
-        loc = [0] * signal.n
-        loc[idx] = 1
-        banzhaf_dict[tuple(loc)] = banzhaf_value_idx
-    banzhaf_dict[tuple([0] * signal.n)] = null_value
-    return mobius_to_fourier(banzhaf_dict)
-
+            # spex methods use maximum order 5
+            ordered_methods.append((method, 5))
+    return ordered_methods
 
 class AlternativeSampler:
     def __init__(self, type, sampling_function, qsft_signal, n):
