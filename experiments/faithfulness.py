@@ -74,7 +74,7 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
     for i, explicand in enumerate(explicands):
         print(explicand)
         n = model.set_explicand(explicand)
-        sampling_function = lambda X: model.inference(X)
+        sampling_function = model.inference
 
         query_indices_test = np.random.choice(2, size=(num_test_samples, n))
         saved_samples_test = query_indices_test, sampling_function(query_indices_test)
@@ -126,7 +126,7 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
 
 if __name__ == "__main__":
     numba.set_num_threads(8)
-    TASK = 'cancer'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, vision
+    TASK = 'parkinsons'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, vision
     DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
     NUM_EXPLAIN = 10  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods

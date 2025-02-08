@@ -201,7 +201,7 @@ def removal(explicands, model, methods, bs, max_order, subtract_dist):
     np.random.seed(0)
     for i, explicand in enumerate(explicands):
         n = model.set_explicand(explicand)
-        sampling_function = lambda X: model.inference(X)
+        sampling_function = model.inference
         unix_time_seconds = str(int(time.time()))
         if not os.path.exists('samples/'):
             os.makedirs('samples/')

@@ -10,13 +10,18 @@
 
 
 <p align="center">
-  <a href="#installation">Dependencies</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#dependencies">Dependencies</a> •
   <a href="#quickstart">Quickstart</a> •
   <a href="#citation">Citation</a>
 </p>
 
-<h2 id="installation">Dependencies</h2>
+<h2 id="installation">Installation</h2>
+```
+pip install spex
+```
 
+<h2 id="dependencies">Dependencies</h2>
 ```
 pip install sparse-transform
 pip install torch
@@ -36,7 +41,14 @@ pip install tqdm
 <h2 id="quickstart">Quickstart</h2>
 
 ```
-python experiments/faithfulness.py
+import spex
+
+explicands, model = spex.modelloader.get_model("sentiment")
+for explicand in explicands:
+    model.set_explicand(explicand)
+    interaction_values = spex.Explainer(function=model.sampling_function,
+                                        index="FBII")
+    print(interaction_values)
 ```
 
 <h2 id="citation">Citation</h2>
