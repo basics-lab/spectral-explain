@@ -34,7 +34,7 @@ pip install -e .[dev]
 
 <h2 id="quickstart">Quickstart</h2>
 
-```
+```python
 import spex
 
 explicands, model = spex.modelloader.get_model("sentiment")
