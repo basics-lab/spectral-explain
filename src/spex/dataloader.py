@@ -201,5 +201,5 @@ def get_dataset(dataset, num_explain):
         "cancer": Cancer,
         "sentiment": Sentiment,
         "puzzles": Puzzles,
-        "vqa": VisualQA,
+        "visual-qa": VisualQA,
     }.get(dataset, NotImplementedError())().retrieve(num_explain)

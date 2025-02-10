@@ -127,7 +127,7 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
 if __name__ == "__main__":
     setup_root()
     numba.set_num_threads(8)
-    TASK = 'vqa'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, vision
+    TASK = 'sentiment'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, visual-qa
     DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
     NUM_EXPLAIN = 10  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods

@@ -362,7 +362,7 @@ def get_model(task, num_explain=10, device=None):
         "cancer": MLPClassification,
         "sentiment": Sentiment,
         "puzzles": Puzzles,
-        "vqa": VisualQA,
+        "visual-qa": VisualQA,
     }.get(task, NotImplementedError())(task, num_explain, device)
 
     return model.explicands, model
