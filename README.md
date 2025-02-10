@@ -11,31 +11,25 @@
 
 <p align="center">
   <a href="#installation">Installation</a> •
-  <a href="#dependencies">Dependencies</a> •
   <a href="#quickstart">Quickstart</a> •
   <a href="#citation">Citation</a>
 </p>
 
 <h2 id="installation">Installation</h2>
+
+To install the core `spex` package via PyPI, run:
+
 ```
 pip install spex
 ```
 
-<h2 id="dependencies">Dependencies</h2>
+To replicate the experiments in this repository, you need to install additional dependencies. To install `spex` with these optional dependencies, run:
+
+
 ```
-pip install sparse-transform
-pip install torch
-pip install transformers
-pip install scikit-learn
-pip install openai
-pip install numpy
-pip install shapiq
-pip install openml
-pip install lime
-pip install pandas
-pip install pickle
-pip install numba
-pip install tqdm
+git clone git@github.com:basics-lab/spectral-explain.git
+cd spectral-explain
+pip install -e .[dev]
 ```
 
 <h2 id="quickstart">Quickstart</h2>
