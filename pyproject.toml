@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "spex"
+name = "spectral-explain"
 version = "0.0.1"
 dependencies = [
   "sparse-transform",

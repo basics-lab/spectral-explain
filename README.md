@@ -20,7 +20,7 @@
 To install the core `spex` package via PyPI, run:
 
 ```
-pip install spex
+pip install spectral-explain
 ```
 
 To replicate the experiments in this repository, you need to install additional dependencies. To install `spex` with these optional dependencies, run:
