@@ -47,7 +47,7 @@ def support_recovery(type, signal, b, t=5):
         "res_energy_cutoff": 0.9,
         "trap_exit": True,
         "verbosity": 0,
-        "report": True,
+        "report": False,
         "peel_average": True,
     }
     return transform(signal, **qsft_args)

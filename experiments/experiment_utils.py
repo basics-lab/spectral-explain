@@ -21,11 +21,11 @@ SAMPLER_DICT = {
 
 
 def spex_hard(signal, b, order=5, **kwargs):
-    return support_recovery("hard", signal, b, t=order)["transform"]
+    return support_recovery("hard", signal, b, t=order)
 
 
 def spex_soft(signal, b, order=5, **kwargs):
-    return support_recovery("soft", signal, b, t=order)["transform"]
+    return support_recovery("soft", signal, b, t=order)
 
 
 def LIME(signal, b, **kwargs):
