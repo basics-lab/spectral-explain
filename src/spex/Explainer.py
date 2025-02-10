@@ -1,6 +1,6 @@
 from spex.support_recovery import sampling_strategy, support_recovery, get_num_samples
 from spex.utils import *
-import shutil
+
 class Explainer:
     def __init__(self, value_function, num_features, index="FBII", budget=None, max_order=5):
         self.value_function = value_function

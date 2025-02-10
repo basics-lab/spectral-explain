@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spex"
+version = "0.0.1"
+dependencies = [
+  "sparse-transform",
+  "tqdm",
+  "numpy>1.18",
+  "scikit-learn",
+]
+requires-python = ">=3.10"
+authors = [
+  { name="Justin Kang", email="justin_kang@berkeley.edu" },
+  { name="Landon Butler", email="landonb@berkeley.edu" },
+  { name="Yigit Efe Erginbas", email="erginbas@berkeley.edu" },
+  { name="Abhineet Agarwal", email="aa3797@berkeley.edu" },
+]
+description = "Spectral Explainer: Scalable Feature Interaction Attribution"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+data = [
+  "pandas",
+  "torch>2.4",
+  "transformers",
+  "openai",
+  "openml",
+  "pillow"
+]
+dev = [
+  "spex[data]",
+  "shapiq",
+  "lime",
+  "pyrootutils",
+  "matplotlib",
+]
+
+[project.urls]
+Homepage = "https://github.com/basics-lab/spectral-explain"
