@@ -7,6 +7,7 @@ from spex.modelloader import get_model
 from spex.support_recovery import sampling_strategy
 from spex.utils import *
 from experiment_utils import *
+import matplotlib.pyplot as plt
 
 
 def run_and_evaluate_method(method, sampler, order, b, saved_samples_test):
@@ -26,18 +27,87 @@ def run_and_evaluate_method(method, sampler, order, b, saved_samples_test):
     - The Fourier reconstruction dictionary.
     """
     start_time = time.time()
-    reconstruction = {
-        "shapley": shapley,
-        "banzhaf": banzhaf,
-        "lime": LIME,
-        "faith_shapley": faith_shapley,
-        "faith_banzhaf": faith_banzhaf,
-        "shapley_taylor": shapley_taylor,
-        "spex_hard": spex_hard,
-        "spex_soft": spex_soft,
-    }.get(method, NotImplementedError())(sampler, b, order=order)
-    end_time = time.time()
-    return end_time - start_time, estimate_r2(reconstruction, saved_samples_test), reconstruction
+    if method == "neural_network":
+        """
+        x_holdout = torch.tensor(saved_samples_test[0], dtype=torch.float32)
+        y_holdout = saved_samples_test[1]
+
+        learning_rates = [1e-1, 5e-2, 1e-2, 1e-3, 1e-4]
+        num_buckets_list = [4, 6, 8, 10]
+
+        bar_width = 0.15
+        x_positions = np.arange(len(learning_rates))
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        for i, num_buckets in enumerate(num_buckets_list):
+            faith = []
+            sparse = []
+
+            for lr in learning_rates:
+                model = neural_network(sampler, b, order=order, num_buckets=num_buckets, reg_weight=lr)
+                model.eval()
+
+                with torch.no_grad():
+                    y_pred = model(x_holdout).squeeze().numpy()
+                    r2 = 1 - (np.linalg.norm(y_holdout - y_pred) ** 2 / np.linalg.norm(
+                        y_holdout - np.mean(y_holdout)) ** 2)
+                    faith.append(r2)
+
+                spex_signal, num_samples = sampling_strategy(lambda x: model(x).squeeze().detach().numpy(),
+                                                             3, 8, sampler.n, '')
+                sparse.append(len(spex_hard(spex_signal, 8)))
+
+            # Create bar chart
+            print(faith)
+            bar_positions = x_positions + i * bar_width
+            bars = ax.bar(bar_positions, faith, width=bar_width, label=f'Bins={num_buckets}')
+
+            # Annotate sparsity at the bottom of each bar
+            for j, bar in enumerate(bars):
+                ax.text(bar.get_x() + bar.get_width() / 2, 0.21, str(sparse[j]),
+                        ha='center', va='bottom', fontsize=12, color='black')
+
+        ax.set_xticks(x_positions, labels=['1e-1', '5e-1', '1e-2', '1e-3', '1e-4'])
+        ax.set_xlabel('Learning Rate')
+        ax.set_ylabel('R2')
+        ax.set_ylim(0.2, 0.6)
+        ax.legend()
+        plt.title('R2 Score vs Learning Rate for Different Bin Sizes')
+        plt.savefig('spectral_nn_barchart_140.png')
+
+        end_time = time.time()
+        return end_time - start_time, r2, None
+        """
+        x_holdout = torch.tensor(saved_samples_test[0], dtype=torch.float32)
+        y_holdout = saved_samples_test[1]
+
+        model = neural_network(sampler, b, order=order, num_buckets=0, reg_weight=0)
+        model.eval()
+        end_time1 = time.time()
+        spex_nn_signal, num_samples = sampling_strategy(lambda x: model(x).squeeze().detach().numpy(),
+                                                     3, 12, sampler.n, '')
+        reconstruction = spex_hard(spex_nn_signal, 12)
+        end_time = time.time()
+
+        y_pred = model(x_holdout).detach().squeeze().numpy()
+        r2 = 1 - (np.linalg.norm(y_holdout - y_pred) ** 2 / np.linalg.norm(
+            y_holdout - np.mean(y_holdout)) ** 2)
+        print(f'NN w/o SPEX: {r2} test r2 in {np.round(max(end_time1 - start_time, 0), 3)} seconds')
+        return end_time - start_time, estimate_r2(reconstruction, saved_samples_test), reconstruction
+    else:
+        reconstruction = {
+            "shapley": shapley,
+            "banzhaf": banzhaf,
+            "lime": LIME,
+            "faith_shapley": faith_shapley,
+            "faith_banzhaf": faith_banzhaf,
+            "shapley_taylor": shapley_taylor,
+            "spex_hard": spex_hard,
+            "spex_soft": spex_soft
+        }.get(method, NotImplementedError())(sampler, b, order=order)
+        end_time = time.time()
+        return end_time - start_time, estimate_r2(reconstruction, saved_samples_test), reconstruction
 
 
 def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
@@ -65,13 +135,12 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
         "samples": np.zeros((len(explicands), count_b)),
         "methods": {f'{method}_{order}': {'time': np.zeros((len(explicands), count_b)),
                                           'test_r2': np.zeros((len(explicands), count_b)),
-                                          'reconstructions': [[None] * count_b] * len(explicands),
-                                          'sampler': None}
+                                          'reconstructions': [[None] * count_b] * len(explicands)}
                     for method, order in ordered_methods}
     }
 
     np.random.seed(0)
-    for i, explicand in enumerate(explicands):
+    for i, explicand in enumerate(explicands[::10]):
         print(explicand)
         n = model.set_explicand(explicand)
         sampling_function = model.inference
@@ -101,8 +170,7 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
             for method, order in ordered_methods:
                 method_str = f'{method}_{order}'
                 sampler = active_sampler_dict[SAMPLER_DICT[method]]
-                results["methods"][method_str]["sampler"] = sampler
-                if "spex" not in method and (
+                if method not in ["spex_soft", "spex_hard", "neural_network"] and (
                         (order >= 2 and n >= 64) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16)):
                     results["methods"][method_str]["time"][i, j] = np.nan
                     results["methods"][method_str]["test_r2"][i, j] = np.nan
@@ -128,17 +196,17 @@ if __name__ == "__main__":
     setup_root()
     numba.set_num_threads(8)
     TASK = 'sentiment'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, visual-qa
-    DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
-    NUM_EXPLAIN = 10  # the number of examples from TASK to be explained
+    DEVICE = 'mps'  # choose DEVICE from cpu, mps, or cuda
+    NUM_EXPLAIN = 200  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods
-    Bs = [4, 6, 8]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
+    Bs = [4]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
     NUM_TEST_SAMPLES = 1000  # number of uniformly drawn test samples to measure faithfulness
 
     # marginal attribution methods: shapley, banzhaf, lime
     # interaction attribution methods: faith_banzhaf, faith_shapley, shapley_taylor
     # spex attribution methods: spex_hard (faster decoding), spex_soft (slower decoding for better performance)
-    METHODS = ['shapley', 'banzhaf', 'lime',
-               'faith_banzhaf', 'faith_shapley', 'shapley_taylor',
+    METHODS = [
+               'neural_network',
                'spex_hard', 'spex_soft']
 
     if DEVICE == 'cuda':

@@ -43,7 +43,7 @@ def support_recovery(type, signal, b, t=5):
         "source_decoder": source_decoder,
         "peeling_method": "multi-detect",
         "noise_sd": 0,
-        "regress": 'lasso',
+        "regress": 'linear',
         "res_energy_cutoff": 0.9,
         "trap_exit": True,
         "verbosity": 0,
