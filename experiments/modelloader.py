@@ -8,7 +8,7 @@ import os
 from PIL import Image, ImageDraw, ImageFilter
 from itertools import islice
 
-from spex.dataloader import get_dataset
+from dataloader import get_dataset
 
 def batched(iterable, batch_size):
     """

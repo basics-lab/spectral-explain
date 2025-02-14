@@ -10,6 +10,15 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping
 from itertools import product
+import torch
+import torch.nn.functional as F
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import EarlyStopping
+from itertools import product
+import logging
+import math
+import numpy as np
+import torch.nn as nn
 
 warnings.filterwarnings("ignore")
 
@@ -168,7 +177,7 @@ def neural_network(signal, b, order=1, num_buckets=8, reg_weight=1e-1, **kwargs)
         def spectral_norm(self):
             binary_vectors = torch.tensor(list(product([0, 1], repeat=self.num_buckets)), dtype=torch.float32, device=self.device)
             binary_matrix = torch.randint(0, 2, (self.num_buckets, self.model[0].in_features), dtype=torch.float32, device=self.device)
-            transformed_vectors = torch.matmul(binary_vectors, binary_matrix)
+            transformed_vectors = torch.matmul(binary_vectors, binary_matrix) % 2
             values = self(transformed_vectors)
             x_tf = self.walsh_hadamard_recursive(values) / 2 ** self.num_buckets
             return x_tf.abs().sum()  # L1 norm of FFT outputs
@@ -198,13 +207,13 @@ def neural_network(signal, b, order=1, num_buckets=8, reg_weight=1e-1, **kwargs)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=64, shuffle=False)
 
     # Train the model
-    model = RegressionModel(input_dim=coordinates.shape[1], num_buckets=0, reg_weight=0)
+    model = RegressionModel(input_dim=coordinates.shape[1], num_buckets=num_buckets, reg_weight=reg_weight)
 
     # Define EarlyStopping callback
-    early_stop_callback = EarlyStopping(monitor="val_loss", patience=3, mode="min", verbose=False)
+    early_stop_callback = EarlyStopping(monitor="val_loss", patience=20, mode="min", verbose=False)
 
     # Trainer with EarlyStopping
-    trainer = pl.Trainer(max_epochs=200, enable_checkpointing=False, logger=False,
+    trainer = pl.Trainer(max_epochs=500, enable_checkpointing=False, logger=False,
                          enable_model_summary=False, callbacks=[early_stop_callback])
 
     # Train the model
@@ -212,6 +221,223 @@ def neural_network(signal, b, order=1, num_buckets=8, reg_weight=1e-1, **kwargs)
 
     return model
 
+def seed_everything(seed):
+    pl.seed_everything(seed, workers=True)  # Ensures Lightning module is also seeded
+
+
+class RegressionModel(pl.LightningModule):
+    def __init__(self, input_dim, regularization=None, b=8, reg_weight=1e-1):
+        super().__init__()
+        assert regularization in [None, 'eth', 'conv', 'conv2']
+        self.regularization = regularization
+        self.b = b
+        self.reg_weight = reg_weight
+        self.model = torch.nn.Sequential(
+            torch.nn.Linear(input_dim, input_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(input_dim, input_dim // 2),
+            torch.nn.ReLU(),
+            torch.nn.Linear(input_dim // 2, input_dim // 2),
+            torch.nn.ReLU(),
+            torch.nn.Linear(input_dim // 2, 1),
+        )
+        self.H = None
+        self.xor_matrix = None
+        self.bin_matrix = None
+
+
+    def forward(self, x):
+        # if x is not a tensor, convert it to a tensor
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x, dtype=torch.float32, device=self.device)
+        if self.H is None:
+            self.H = self.create_hadamard_matrix(normalize=False)
+        shifted_x = 2 * x - 1
+        return self.model(shifted_x)
+
+    def create_hadamard_matrix(self, normalize=False):
+        '''
+        Compute H_n, Hadamard matrix
+        '''
+        H1 = torch.asarray([[1., 1.], [1., -1.]])
+        H = torch.asarray([1.])
+        for i in range(self.b):
+            H = torch.kron(H, H1)
+        if normalize:
+            H = (1 / math.sqrt(2 ** self.b)) * H
+        return H.to(self.device)
+
+    def create_xor_matrix(self):
+        indices = torch.arange(2 ** self.b, dtype=torch.int32)
+
+        # Compute the XOR of every combination using broadcasting
+        self.xor_matrix = (indices[:, None] ^ indices[None, :]).to(self.device)
+
+    def create_bin_matrix(self):
+        self.bin_matrix = torch.tensor(list(product([0, 1], repeat=self.b)), dtype=torch.float32, device=self.device)
+
+    def walsh_hadamard_recursive(self, x):
+        """
+        Computes the Walsh-Hadamard transform recursively.
+
+        Args:
+            x (torch.Tensor): A 1D tensor of size 2^n.
+
+        Returns:
+            torch.Tensor: The Walsh-Hadamard transform of x.
+        """
+        n = x.numel()
+        if n == 1:
+            return x
+        else:
+            half_n = n // 2
+            x_top = x[:half_n]
+            x_bottom = x[half_n:]
+            top_part = self.walsh_hadamard_recursive(x_top + x_bottom)
+            bottom_part = self.walsh_hadamard_recursive(x_top - x_bottom)
+            return torch.cat((top_part, bottom_part))
+
+    def eth_reg(self):
+        if self.bin_matrix is None:
+            self.create_bin_matrix()
+        random_hash = torch.randint(0, 2, (self.b, self.model[0].in_features), dtype=torch.float32,
+                                      device=self.device)
+        transformed_vectors = torch.matmul(self.bin_matrix, random_hash) % 2
+
+        values = self(transformed_vectors)
+        x_tf = (self.H @ values)  / 2 ** self.b
+        return x_tf.abs().sum()  # L1 norm of FFT outputs
+
+    def conv_reg(self):
+        if self.bin_matrix is None:
+            self.create_bin_matrix()
+        random_hash = torch.randint(0, 2, (self.b, self.model[0].in_features), dtype=torch.float32,
+                                      device=self.device)
+        transformed_vectors = torch.matmul(self.bin_matrix, random_hash) % 2
+        values = self(transformed_vectors)
+
+        if self.xor_matrix is None:
+            self.create_xor_matrix()
+
+        # Instead, take the convolution of the values
+        conv = values.squeeze()[self.xor_matrix] @ values / 2 ** self.b
+
+        x_tf = (self.H @ conv) / 2 ** self.b
+        return x_tf.abs().sum()
+
+    def conv_reg2(self):
+        if self.bin_matrix is None:
+            self.create_bin_matrix()
+        random_hash = torch.randint(0, 2, (self.b, self.model[0].in_features), dtype=torch.float32,
+                                      device=self.device)
+        transformed_vectors = torch.matmul(self.bin_matrix, random_hash) % 2
+        conv_values = torch.zeros(2**self.b, dtype=torch.float32, device=self.device)
+        y = torch.randint(0, 2, (1000, self.model[0].in_features), dtype=torch.float32,
+                          device=self.device)
+        y_values = self(y)
+
+        for i in range(2 ** self.b):
+            xy = torch.logical_xor(transformed_vectors[i], y).float()
+            xy_values = self(xy)
+
+            conv_values[i] = torch.dot(y_values.squeeze(), xy_values.squeeze()) / 1000
+
+        x_tf = (self.H @ conv_values) / 2 ** self.b
+        del random_hash, y, xy, conv_values
+        torch.cuda.empty_cache()
+        return x_tf.abs().sum()
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        loss = F.mse_loss(self(x).squeeze(), y)
+        if not self.regularization:
+            return loss
+        elif self.regularization == 'eth':
+            reg_loss = self.eth_reg() * self.reg_weight
+            return loss + reg_loss
+        elif self.regularization == 'conv':
+            reg_loss = self.conv_reg() * self.reg_weight
+            return loss + reg_loss
+        else:
+            reg_loss = self.conv_reg2() * self.reg_weight
+            return loss + reg_loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        y_pred = self(x).squeeze()  # Get the model's predictions
+
+        # Compute R^2
+        ss_total = torch.sum((y - torch.mean(y)) ** 2)  # Total sum of squares
+        ss_residual = torch.sum((y - y_pred.squeeze()) ** 2)  # Residual sum of squares
+
+        self.log('val_r2', 1-(ss_residual / ss_total))
+        return (ss_residual / ss_total)
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=0.05)
+
+
+def neural_network(signal, b, order = 1, bins=8, reg_weights=[0.01], seed=0):
+    coordinates = []
+    values = []
+    for m in range(len(signal.all_samples)):
+        for d in range(len(signal.all_samples[0])):
+            for z in range(2 ** b):
+                coordinates.append(signal.all_queries[m][d][z])
+                values.append(np.real(signal.all_samples[m][d][z]))
+
+    coordinates = np.array(coordinates)
+    values = np.array(values)
+
+    seed_everything(seed)
+    dataset = torch.utils.data.TensorDataset(torch.tensor(coordinates, dtype=torch.float32),
+                                             torch.tensor(values, dtype=torch.float32))
+    train_size = int(0.9 * len(dataset))
+    val_size = len(dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+
+    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=train_size, shuffle=True)
+    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=val_size, shuffle=False)
+
+    val_r2s = []
+    trained_models = []
+    for reg_weight in reg_weights:
+        model = RegressionModel(input_dim=signal.n, regularization="eth",
+                                b=bins, reg_weight=reg_weight)
+
+        # Define EarlyStopping callback
+        early_stop_callback = EarlyStopping(monitor="val_r2", patience=20, mode="max", verbose=False)
+
+        logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+
+        # Trainer with EarlyStopping
+        trainer = pl.Trainer(max_epochs=500,
+                             accelerator="auto",
+                             devices="auto",
+                             enable_checkpointing=False,
+                             logger=False,
+                             enable_model_summary=True,
+                             enable_progress_bar=False,
+                             callbacks=[early_stop_callback])
+
+        # Train the model
+        trainer.fit(model, train_dataloader, val_dataloader)
+        print(f"Training completed. The trainer ran for {trainer.current_epoch} epochs.")
+        model.eval()
+        trained_models.append(model)
+
+        val_r2 = 0.0
+        with torch.no_grad():
+            for val_X, val_y in val_dataloader:
+                val_pred = model(val_X).squeeze()
+                ss_total = torch.sum((val_y - torch.mean(val_y)) ** 2)  # Total sum of squares
+                ss_residual = torch.sum((val_y - val_pred) ** 2)  # Residual sum of squares
+                val_r2 += 1 - (ss_residual / ss_total)
+
+        # Average validation loss over the dataset
+        val_r2s.append(val_r2)
+    print(val_r2s)
+    return trained_models[np.argmax(val_r2s)]
 
 def get_ordered_methods(methods, max_order):
     ordered_methods = []
