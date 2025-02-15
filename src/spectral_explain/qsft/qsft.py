@@ -14,8 +14,8 @@ import random
 import copy
 from spectral_explain.baselines.amp.AMPSolver import AMPSolver
 from spectral_explain.utils import mobius_to_fourier, fourier_to_mobius
-#from sklearn.linear_model import LassoCV
-from celer import LassoCV
+from sklearn.linear_model import LassoCV
+#from celer import LassoCV
 
 logger = logging.getLogger(__name__)
 
@@ -371,7 +371,7 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=
     Returns:
     tuple: A tuple containing the regression coefficients and the support locations.
     """
-    assert type in ['linear', 'lasso', 'shapley']
+    assert type in ['linear', 'lasso', 'shapley', 'ridge']
     if coordinates is None and values is None:
         coordinates = []
         values = []
@@ -389,20 +389,27 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True, coordinates=
     else:
         support = results['locations']
 
+
     # add null coefficient if not contained
     support = np.vstack([support, np.zeros(n)])
+   #support = np.vstack([support, np.eye(n)])
     support = np.unique(support, axis=0)
+
+
     if fourier_basis:
         X = np.real(np.exp(coordinates @ (1j * np.pi * support.T)))
     else:
-        X = ((coordinates @ support.T) > 0.5).astype(int)
+        X = ((coordinates @ support.T) >= np.sum(support, axis=1)).astype(int)
         X[:, 0] = 1
 
     if type == 'linear':
+        reg = LinearRegression(fit_intercept=False).fit(X, values) #LinearRegression(fit_intercept=False).fit(X, values)
+        coefs = reg.coef_
+    elif type == 'ridge':
         reg = RidgeCV(fit_intercept=False,alphas = np.logspace(-3, 3, 100)).fit(X, values) #LinearRegression(fit_intercept=False).fit(X, values)
         coefs = reg.coef_
     elif type == 'lasso':
-        reg = LassoCV(fit_intercept=False, n_alphas=10, tol = 1e-7).fit(X, values)
+        reg = LassoCV(fit_intercept=False, n_alphas=50, tol = 1e-7).fit(X, values)
         coefs = reg.coef_
     elif type == 'shapley':
         # the first two sampled values correspond to the all 0's and all 1's queries. These should hold with equality.

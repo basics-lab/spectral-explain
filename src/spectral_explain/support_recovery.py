@@ -34,7 +34,7 @@ def support_recovery(type, signal, b, t=5):
                                           chase_depth=2 * t),
         "peeling_method": "multi-detect",
         "noise_sd": 0,
-        "regress": 'linear',
+        "regress": 'ridge',
         "res_energy_cutoff": 0.9,
         "trap_exit": True,
         "verbosity": 0,

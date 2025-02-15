@@ -1,6 +1,8 @@
 .venv/
 samples/
-experiments/results/
+experiments/results/*
+experiments/new_results/
+experiments/processed_results/
 *.log
 .ipynb_checkpoints/
 logs/

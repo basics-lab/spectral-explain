@@ -241,13 +241,13 @@ class HotpotQA(TextDataset):
 
   
 
-    def load(self,  seed = 42, min_length = 17, max_length = 32, max_token_length = 1000, mini = False,**kwargs):
+    def load(self,  seed = 42, min_length = 8, max_length = 200, max_token_length = 2048, mini = False,**kwargs):
         documents = []
         dataset = load_dataset('hotpot_qa', self.task, self.split, trust_remote_code = True)[self.split]
         dataset = dataset.shuffle(seed = seed)
         for sample in dataset:
             sample_id = sample['id']
-            question = f'Answer the following question: {sample["question"]} based on the context provided below. Answer in a single word or phrase. Long answers are penalized heavily.'
+            question = f'Answer the following question based on the context provided below: {sample["question"]}. Answer in a single word or phrase. Long answers are penalized heavily.'
             answer = sample['answer']
             answer_token_ids = self.tokenizer(answer, return_tensors='pt').input_ids[0,1:].tolist()
             if len(answer_token_ids) > self.max_token_ids:

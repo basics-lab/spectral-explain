@@ -184,7 +184,7 @@ def lasso(signal, b, order=1, **kwargs):
     return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b)[0]
 
 def faith_banzhaf(signal, b, order=1, **kwargs):
-    return fit_regression('lasso', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b,
+    return fit_regression('linear', {'locations': qary_ints_low_order(signal.n, 2, order).T}, signal, signal.n, b,
                           fourier_basis=False)[0]
 
 def LIME(signal, n, **kwargs):
@@ -300,7 +300,7 @@ def get_and_evaluate_reconstruction(explicand, Bs = [4,6,8], save_dir = 'experim
     reconstruction_dict = {}
     r2_results = {}
     max_order = get_max_order(n)
-    reg_methods = [('linear', i) for i in range(max_order+1)] + [('lasso', i) for i in range(max_order+1)] + [('faith_banzhaf', i) for i in range(max_order+1)]
+    reg_methods = [('linear', i) for i in range(1,max_order+1)] + [('lasso', i) for i in range(1,max_order+1)] + [('faith_banzhaf', i) for i in range(1,max_order+1)]
     qsft_methods = [('qsft_hard', 0), ('qsft_soft', 0)]
     shap_methods = [('SV', 1)] +  [('FSII', i) for i in range(1,max_order+1)] + [('STII', get_max_order(n, index = 'STII')) for i in range(1,max_order+1)]
     lime_methods = [('lime', 1)]
@@ -337,8 +337,10 @@ def get_and_evaluate_reconstruction(explicand, Bs = [4,6,8], save_dir = 'experim
             #r2_results[(method,order,b)] = {'r2': r2, 'reconstruction': reconstruction_dict[ordered_method], 'samples': get_num_samples(qsft_signal,b)}
             print(f'Finished {method} reconstruction for b = {b} and order = {order} with r2 score {r2_results[(method_name,b)]["r2"]} and {r2_results[(method_name,b)]["samples"]} samples')
     
-    for k in explicand.keys():
-        reconstruction_dict[k] = explicand[k]
+    # for k in explicand.keys():
+    #     reconstruction_dict[k] = explicand[k]
+    reconstruction_dict['explicand'] = explicand
+    r2_results['explicand'] = explicand
     with open(f'{save_dir}/reconstruction_dict.pickle', 'wb') as handle:
         pickle.dump(reconstruction_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
     with open(f'{save_dir}/r2_results.pickle', 'wb') as handle:
