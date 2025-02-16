@@ -7,9 +7,9 @@ from openai import OpenAI
 import os
 from PIL import Image, ImageDraw, ImageFilter
 from itertools import islice
-
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from spex.dataloader import get_dataset
-
+import torch.nn.functional as F
 def batched(iterable, batch_size):
     """
     Splits an iterable into batches
@@ -344,6 +344,96 @@ class VisualQA:
         
         return logits
 
+class QAModel:
+    """
+    A class for performing question answering.
+    """
+    
+    def __init__(self, task, num_explain, device, model_name = 'meta-llama/Llama-3.2-3B-Instruct', model_config = {'attn_implementation': 'flash_attention_2', 'torch_dtype': torch.float16}):
+        super().__init__()
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, **model_config).to(device)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.padding_side = 'left'
+        self.mask_token = '<unk>'
+        self.model.eval()
+        self.device = device
+        self.scalarizer = 'log_perplexity'
+        self.explicands = get_dataset(task, num_explain)
+        self.batch_size = 64
+    
+    def set_explicand(self, explicand):
+        self.explicand = explicand
+        self.context = explicand['input']
+        self.question = explicand['question']
+        self.answer = explicand['answer']
+        self.n = len(self.context)
+        self.get_original_output()
+        return self.n
+    
+    def get_original_output(self):
+        '''
+        Computes the original output token ids'
+        '''
+        input_strings = [f"{self.explicand['question']}\nContext: {self.explicand['original']}\nAnswer:"]
+        self.tokenizer.padding_side = 'left'
+        inputs = self.tokenizer(input_strings, return_tensors='pt', padding=True, truncation=True).to(self.model.device)
+        with torch.inference_mode():
+            outputs = self.model.generate(**inputs, pad_token_id=self.tokenizer.eos_token_id, return_dict_in_generate=True)
+        original_output_token_ids = outputs['sequences'][:,inputs['input_ids'].shape[1]:][0].detach().cpu().numpy().tolist()
+        original_output = self.tokenizer.decode(original_output_token_ids, skip_special_tokens=True)
+        original_output_token_ids = [-1] + original_output_token_ids
+        self.explicand['model_answer'] = original_output
+        self.explicand['model_answer_token_ids'] = original_output_token_ids
+        del outputs, inputs 
+
+    def compute_log_prob(self, masked_inputs, original_output_token_ids):
+        '''
+        Computes the log probabilities of generating the original outputs given a masked context
+        '''
+        self.tokenizer.padding_side = 'left'
+        batch_sequence_log_probs = [0.0] * len(masked_inputs)
+        for j in range(len(original_output_token_ids) - 1):
+            token_id = original_output_token_ids[j]
+            prompts = []
+            if token_id == -1:
+                token_str = ''
+            else:
+                token_str = self.tokenizer.decode([token_id])
+            for input in masked_inputs:
+                prompts.append(f"{self.explicand['question']}\nContext: {input}\nAnswer: {token_str}")
+            inputs = self.tokenizer(prompts, return_tensors='pt', padding=True, truncation=True).to(self.model.device)
+            with torch.inference_mode():
+                outputs = self.model.generate(**inputs, pad_token_id=self.tokenizer.eos_token_id, output_scores=True, return_dict_in_generate=True, max_new_tokens=1)
+            batch_token_probs = torch.stack(outputs['scores']).swapaxes(0,1)[:,0,:] # batch size * vocab size
+            batch_token_probs = torch.clamp(batch_token_probs, min = 1e-6, max = 1.0 - 1e-6)
+            batch_token_log_probs = F.log_softmax(batch_token_probs,dim = 1)[:,original_output_token_ids[j+1]].detach().cpu().numpy()
+            batch_sequence_log_probs = [batch_sequence_log_probs[idx] + batch_token_log_probs[idx] for idx in range(len(masked_inputs))]
+            del inputs, outputs, batch_token_probs, batch_token_log_probs
+        
+        return np.array(batch_sequence_log_probs)
+    
+    def inference(self, X):
+        input_strings = []
+        outputs = [0.0] * len(X)
+
+        for index in X:
+            input = self.explicand['input']
+            for i, word in enumerate(self.explicand['input']):
+                if index[i] == 0:
+                    input[i] = self.mask_token
+            input_strings.append(' '.join(input))
+        
+        count = 0
+        for i in tqdm(range(0, len(input_strings), self.batch_size)):
+            batch = input_strings[i:i+self.batch_size]
+            sequence_log_probs = self.compute_log_prob(batch, self.explicand['model_answer_token_ids'])
+            outputs[count:count+len(sequence_log_probs)] = sequence_log_probs
+            count += len(sequence_log_probs)
+            del batch, sequence_log_probs
+            torch.cuda.empty_cache()
+        
+        return np.array(outputs)
     
 def get_model(task, num_explain=10, device=None):
     """
@@ -363,6 +453,7 @@ def get_model(task, num_explain=10, device=None):
         "sentiment": Sentiment,
         "puzzles": Puzzles,
         "visual-qa": VisualQA,
+        "drop": QAModel,
     }.get(task, NotImplementedError())(task, num_explain, device)
 
     return model.explicands, model

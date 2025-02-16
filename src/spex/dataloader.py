@@ -8,6 +8,9 @@ from PIL import Image
 import requests
 import json
 from itertools import islice
+from nltk.tokenize import word_tokenize, sent_tokenize
+from datasets import load_dataset
+from collections import Counter
 
 def scaler_classification(X_train, X_test, y_train, y_test):
     s = StandardScaler()
@@ -183,7 +186,39 @@ class VisualQA(TextDataset):
         with open('data/visualqa.json', 'r') as file:
             self.documents = json.load(file)
             for doc in self.documents:
-                doc["image"] = Image.open(requests.get(doc["image_url"], stream=True).raw).convert('RGB')     
+                doc["image"] = Image.open(requests.get(doc["image_url"], stream=True).raw).convert('RGB')  
+
+
+class Drop(TextDataset):
+    """
+    Drop dataset for question answering
+    We use the validation split of the Drop dataset and mask at the word level.
+    """
+    def __init__(self):
+        super().__init__()
+        self.name = 'Drop'
+        self._split = 'validation'
+
+    def _get_answer_counts(self, doc):
+        answer_counts = Counter(doc['answers_spans']['spans'])
+        max_count = max(answer_counts.values())
+        most_frequent_answers = [ans for ans, count in answer_counts.items() if count == max_count]
+        answer = most_frequent_answers[0]  # Choose the first one in case of a tie
+        return answer
+
+    def load(self):
+        dataset = load_dataset('drop', name = None, split = self._split)
+        self.documents = []
+        for doc in dataset:
+            context_words = word_tokenize(doc['passage'])
+            original_context = doc['passage']
+            question = f"Answer the following question: {doc['question']} based on the context provided below. Provide the shortest answer possible, long answers are not allowed."
+            answer = self._get_answer_counts(doc)
+            self.documents.append({'original': original_context, 'input': context_words, 'locations': [], 'question': question, 'answer': answer, 'n': len(context_words), 'id': doc['query_id']})
+       
+    
+
+    
 
 def get_dataset(dataset, num_explain):
     """
@@ -202,4 +237,5 @@ def get_dataset(dataset, num_explain):
         "sentiment": Sentiment,
         "puzzles": Puzzles,
         "visual-qa": VisualQA,
+        "drop": Drop,
     }.get(dataset, NotImplementedError())().retrieve(num_explain)
