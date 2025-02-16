@@ -217,8 +217,81 @@ class Drop(TextDataset):
             self.documents.append({'original': original_context, 'input': context_words, 'locations': [], 'question': question, 'answer': answer, 'n': len(context_words), 'id': doc['query_id']})
        
     
+class HotpotQA(TextDataset):
+    """
+    HotpotQA dataset for question answering
+    We use the validation split of the HotpotQA dataset and mask at the word level.
+    """
+    def __init__(self):
+        super().__init__()
+        self.name = 'hotpotqa'
+        self.task = 'distractor'
+        self._split = 'validation'
 
     
+    def load(self,  seed = 42, mini = False,**kwargs):
+        documents = []
+        dataset = load_dataset('hotpot_qa', self.task, self._split, trust_remote_code = True)[self._split]
+        dataset = dataset.shuffle(seed = seed)
+        for sample in dataset:
+            sample_id = sample['id']
+            question = f'Answer the following question based on the context provided below: {sample["question"]}. Answer in a single word or phrase. Long answers are penalized heavily.'
+            answer = sample['answer']
+            all_sentences = [sent for par in sample['context']['sentences'] for sent in par]
+            sent_to_loc = {sent: i for i, sent in enumerate(all_sentences)}      
+           
+            # For each title, returns sentences associated with it.       
+            title_to_sent_id = self._get_title_to_sent_id(sample,sent_to_loc)
+
+            # Required sentences for the model to answer the question.     
+            #supporting_sentences = self._get_supporting_facts(sample,sent_to_loc)
+
+            # Creates prompt for the model.
+            original = self.create_prompt(sample['context']['title'], all_sentences, title_to_sent_id)
+           
+            documents.append({'answer': answer, 'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
+                                'question': question, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id, 'id': sample_id})
+            # documents.append({'answer': answer, 'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
+            #                   'question': question, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id,
+            #                   'supporting_facts': supporting_sentences,'mask_level': 'sentence', 'id': sample_id})
+        
+        self.documents = documents
+            
+    def create_prompt(self, titles, all_sentences, title_to_sent_id):
+        prompt = ""
+        for i in range(len(titles)):
+            prompt += f"Title: {titles[i]} \n Context:"
+            for sent_id in title_to_sent_id[titles[i]]:
+                prompt += f"{all_sentences[sent_id]}"
+            prompt += "\n"
+        return prompt
+     
+    
+    def _get_title_to_sent_id(self,sample,sent_to_loc):
+        title_to_sent_id = {}
+        for i in range(len(sample['context']['title'])):
+            title = sample['context']['title'][i]
+            title_to_sent_id[title] = []
+            for sent in sample['context']['sentences'][i]:
+                title_to_sent_id[title].append(sent_to_loc[sent])
+        return title_to_sent_id
+
+    # def _get_supporting_facts(self, sample,sent_to_loc):
+    
+    #     # Title and sentence id of the supporting facts with respect to that title
+    #     supporting_facts = [(sample['supporting_facts']['title'][i], sample['supporting_facts']['sent_id'][i]) for i 
+    #                         in range(len(sample['supporting_facts']['title']))]
+    #     supporting_sentences = []
+    #     for title, sent_idx in supporting_facts:
+    #         title_idx = sample['context']['title'].index(title)
+    #         supporting_sentence = sample['context']['sentences'][title_idx][sent_idx]
+    #         supporting_sentence_loc = sent_to_loc[supporting_sentence]
+    #         supporting_sentences.append((title, supporting_sentence, supporting_sentence_loc))
+    #     return supporting_sentences
+    
+
+
+
 
 def get_dataset(dataset, num_explain):
     """
@@ -238,4 +311,5 @@ def get_dataset(dataset, num_explain):
         "puzzles": Puzzles,
         "visual-qa": VisualQA,
         "drop": Drop,
+        "hotpotqa": HotpotQA,
     }.get(dataset, NotImplementedError())().retrieve(num_explain)

@@ -4,7 +4,7 @@ from transformers import pipeline
 import torch
 from tqdm import tqdm
 from openai import OpenAI
-import os
+import os, copy
 from PIL import Image, ImageDraw, ImageFilter
 from itertools import islice
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -344,6 +344,8 @@ class VisualQA:
         
         return logits
 
+
+
 class QAModel:
     """
     A class for performing question answering.
@@ -412,17 +414,22 @@ class QAModel:
             del inputs, outputs, batch_token_probs, batch_token_log_probs
         
         return np.array(batch_sequence_log_probs)
-    
+
+    def create_prompt(self, input):
+        prompt = ' '.join(input)
+        print(prompt)
+        return prompt
+        
     def inference(self, X):
         input_strings = []
         outputs = [0.0] * len(X)
 
         for index in X:
-            input = self.explicand['input']
+            input = copy.copy(self.explicand['input'])
             for i, word in enumerate(self.explicand['input']):
                 if index[i] == 0:
                     input[i] = self.mask_token
-            input_strings.append(' '.join(input))
+            input_strings.append(self.create_prompt(input))
         
         count = 0
         for i in tqdm(range(0, len(input_strings), self.batch_size)):
@@ -434,7 +441,29 @@ class QAModel:
             torch.cuda.empty_cache()
         
         return np.array(outputs)
-    
+
+
+class HotPotQA(QAModel):
+    """
+    A class for performing HotpotQA.
+    """
+    def __init__(self, task, num_explain, device, model_name = 'meta-llama/Llama-3.2-3B-Instruct', model_config = {'attn_implementation': 'flash_attention_2', 'torch_dtype': torch.float16}):
+        super().__init__(task, num_explain, device, model_name, model_config)
+
+    def create_prompt(self, all_sentences):
+        titles = self.explicand['titles']
+        title_to_sent_id = self.explicand['title_to_sent_id']
+        prompt = f"{self.explicand['question']}\n"
+        for i in range(len(titles)):
+            prompt += f"Title: {titles[i]} \n Context:"
+            for sent_id in title_to_sent_id[titles[i]]:
+                prompt += f"{all_sentences[sent_id]}"
+            prompt += "\n"
+        prompt += f"Answer: "
+        print(prompt)
+        return prompt 
+
+
 def get_model(task, num_explain=10, device=None):
     """
     Get the model and explicands for the specified task.
@@ -454,6 +483,7 @@ def get_model(task, num_explain=10, device=None):
         "puzzles": Puzzles,
         "visual-qa": VisualQA,
         "drop": QAModel,
+        "hotpotqa": HotPotQA,
     }.get(task, NotImplementedError())(task, num_explain, device)
 
     return model.explicands, model
