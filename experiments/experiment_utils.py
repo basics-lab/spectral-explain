@@ -219,7 +219,7 @@ class RegressionModel(pl.LightningModule):
         if self.xor_matrix is None:
             self.create_xor_matrix()
 
-        # Instead, take the convolution of the values
+        # Instead, take the empirical convolution of the values
         conv = values.squeeze()[self.xor_matrix] @ values / 2 ** self.b
 
         x_tf = (self.H @ conv) / 2 ** self.b
