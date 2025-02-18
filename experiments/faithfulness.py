@@ -3,7 +3,7 @@ import pickle
 import time
 import os
 import shutil
-from spex.modelloader import get_model
+from modelloader import get_model
 from spex.support_recovery import sampling_strategy
 from spex.utils import *
 from experiment_utils import *
@@ -142,7 +142,7 @@ if __name__ == "__main__":
                'spex_hard', 'spex_soft']
 
     if DEVICE == 'cuda':
-        os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
 

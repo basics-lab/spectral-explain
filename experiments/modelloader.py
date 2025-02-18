@@ -8,7 +8,7 @@ import os, copy
 from PIL import Image, ImageDraw, ImageFilter
 from itertools import islice
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from spex.dataloader import get_dataset
+from dataloader import get_dataset
 import torch.nn.functional as F
 def batched(iterable, batch_size):
     """
