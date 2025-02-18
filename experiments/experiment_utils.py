@@ -139,6 +139,9 @@ class AlternativeSampler:
                     samples_subsample.append(sampling_function(queries))
                 self.all_queries.append(queries_subsample)
                 self.all_samples.append(samples_subsample)
+        else:
+            self.all_queries = None
+            self.all_samples = None
 
     def uniform_queries(self, num_samples):
         return np.random.choice(2, size=(num_samples, self.n))

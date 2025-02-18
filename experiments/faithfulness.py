@@ -101,7 +101,7 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
             for method, order in ordered_methods:
                 method_str = f'{method}_{order}'
                 sampler = active_sampler_dict[SAMPLER_DICT[method]]
-                results["methods"][method_str]["sampler"] = sampler
+                results["methods"][method_str]["sampler"] = (sampler.all_queries, sampler.all_samples)
                 if "spex" not in method and (
                         (order >= 2 and n >= 64) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16)):
                     results["methods"][method_str]["time"][i, j] = np.nan
@@ -128,8 +128,8 @@ if __name__ == "__main__":
     setup_root()
     numba.set_num_threads(8)
     TASK = 'sentiment'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, visual-qa
-    DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
-    NUM_EXPLAIN = 10  # the number of examples from TASK to be explained
+    DEVICE = 'mps'  # choose DEVICE from cpu, mps, or cuda
+    NUM_EXPLAIN = 2  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods
     Bs = [4, 6, 8]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
     NUM_TEST_SAMPLES = 1000  # number of uniformly drawn test samples to measure faithfulness

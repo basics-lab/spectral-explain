@@ -223,7 +223,7 @@ def removal(explicands, model, methods, bs, max_order, subtract_dist):
                 method_str = f'{method}_{order}'
                 print(method_str)
                 sampler = active_sampler_dict[SAMPLER_DICT[method]]
-                results["methods"][method_str]["sampler"] = sampler
+                results["methods"][method_str]["sampler"] = (sampler.all_queries, sampler.all_samples)
                 if (order >= 2 and n >= 64) or (order >= 3 and n >= 32) or (order >= 4 and n >= 16):
                     results["methods"][method_str]["positive_locs"][i, j, :] = np.nan
                     results["methods"][method_str]["negative_locs"][i, j, :] = np.nan
@@ -253,7 +253,7 @@ def removal(explicands, model, methods, bs, max_order, subtract_dist):
 if __name__ == "__main__":
     setup_root()
     numba.set_num_threads(8)
-    TASK = 'cancer'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, vision
+    TASK = 'cancer'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, visual-qa
     DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
     NUM_EXPLAIN = 500  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods
