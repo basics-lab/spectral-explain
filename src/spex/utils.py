@@ -281,7 +281,6 @@ def mobius_to_shapley_taylor_ii(mobius_dict, order):
                 stii_dict[entry] += contribution
             else:
                 stii_dict[entry] = contribution
-    print(stii_dict)
     return stii_dict
 
 
@@ -372,7 +371,6 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True):
     # add null and linear coefficients if not contained
     support = np.vstack([support, np.zeros(n), np.eye(n)])
     support = np.unique(support, axis=0)
-    print(support)
     if fourier_basis:
         X = np.real(np.exp(coordinates @ (1j * np.pi * support.T)))
     else:
