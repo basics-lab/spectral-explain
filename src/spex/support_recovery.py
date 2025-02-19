@@ -2,6 +2,7 @@ from sparse_transform.qsft.qsft import transform
 from sparse_transform.qsft.codes.BCH import BCH
 from sparse_transform.qsft.signals.input_signal_subsampled import SubsampledSignal
 from functools import partial
+import numpy as np
 
 def get_num_samples(signal, b):
     # Calculates the number of samples taken for the given sparsity parameter b
@@ -50,4 +51,4 @@ def support_recovery(type, signal, b, t=5):
         "report": False,
         "peel_average": True,
     }
-    return transform(signal, **qsft_args)
+    return {key: np.real(value) for key, value in transform(signal, **qsft_args).items()}

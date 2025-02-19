@@ -108,7 +108,7 @@ def mobius_to_fourier(mobius_dict):
                 np.abs(val) > 1e-12}
 
 
-def mobius_to_shapley_ii(mobius_dict):
+def mobius_to_shapley_ii(mobius_dict, **kwargs):
     """
     Convert Mobius coefficients to Shapley interaction indices.
     Equation (7) of https://ikojadin.perso.univ-pau.fr/kappalab/pub/GraMarRouMOR2000.pdf
@@ -132,7 +132,7 @@ def mobius_to_shapley_ii(mobius_dict):
     return sii_dict
 
 
-def mobius_to_banzhaf_ii(mobius_dict):
+def mobius_to_banzhaf_ii(mobius_dict, **kwargs):
     """
     Convert Mobius coefficients to Banzhaf interaction indices.
     Equation (6) of https://ikojadin.perso.univ-pau.fr/kappalab/pub/GraMarRouMOR2000.pdf
@@ -168,7 +168,6 @@ def mobius_to_faith_shapley_ii(mobius_dict, order):
     Returns:
     - A dictionary of Faith-Shapley interaction indices.
     """
-
     lower_order_mobius, higher_order_mobius = {}, {}
     for loc in mobius_dict.keys():
         if sum(loc) <= order:
@@ -225,30 +224,29 @@ def mobius_to_faith_banzhaf_ii(mobius_dict, order):
             higher_order_mobius[loc] = np.real(mobius_dict[loc])
 
     # find all projections to lower order terms from higher order terms
-    fsii_dict = {}
+    fbii_dict = {}
     for loc, coef in tqdm(higher_order_mobius.items()):
         card = sum(loc)
         for subset in powerset(loc, order):
             card_subset = sum(subset)
             scaling = (1 / np.power(2.0, card - card_subset)) * math.comb(card - card_subset - 1, order - card_subset)
-            if subset in fsii_dict:
-                fsii_dict[subset] += scaling * coef
+            if subset in fbii_dict:
+                fbii_dict[subset] += scaling * coef
             else:
-                fsii_dict[subset] = scaling * coef
+                fbii_dict[subset] = scaling * coef
 
     # apply weighting of these terms
-    for loc, coef in fsii_dict.items():
+    for loc, coef in fbii_dict.items():
         card = sum(loc)
-        fsii_dict[loc] = coef * np.power(-1.0, order - card)
+        fbii_dict[loc] = coef * np.power(-1.0, order - card)
 
     # add in lower order_terms:
     for loc, coef in lower_order_mobius.items():
-        if loc in fsii_dict:
-            fsii_dict[loc] += coef
+        if loc in fbii_dict:
+            fbii_dict[loc] += coef
         else:
-            fsii_dict[loc] = coef
-
-    return fsii_dict
+            fbii_dict[loc] = coef
+    return fbii_dict
 
 
 def mobius_to_shapley_taylor_ii(mobius_dict, order):
@@ -283,7 +281,7 @@ def mobius_to_shapley_taylor_ii(mobius_dict, order):
                 stii_dict[entry] += contribution
             else:
                 stii_dict[entry] = contribution
-
+    print(stii_dict)
     return stii_dict
 
 
@@ -335,7 +333,7 @@ def bin_vecs_low_order(m, order):
     for o in range(order + 1):
         positions = itertools.combinations(np.arange(m), o)
         for pos in positions:
-            K[counter:counter, pos] = np.array(list(itertools.product(1 + np.arange(1), repeat=o)))
+            K[counter:counter+1, pos] = np.array(list(itertools.product(1 + np.arange(1), repeat=o)))
             counter += 1
     return K.T
 
@@ -374,6 +372,7 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True):
     # add null and linear coefficients if not contained
     support = np.vstack([support, np.zeros(n), np.eye(n)])
     support = np.unique(support, axis=0)
+    print(support)
     if fourier_basis:
         X = np.real(np.exp(coordinates @ (1j * np.pi * support.T)))
     else:
