@@ -34,7 +34,8 @@ pip install -e .[dev]
 ```
 
 <h2 id="quickstart">Quickstart</h2>
- `spex` can be used to quickly compute feature interactions for your models and datasets. Simply define a `value_function`  which takes in a matrix of masking patterns and returns the model's outputs to masked inputs.
+
+`spex` can be used to quickly compute feature interactions for your models and datasets. Simply define a `value_function` which takes in a matrix of masking patterns and returns the model's outputs to masked inputs.
 
 Upon passing this function to the `Explainer` class, alongside the number of features in your dataset, `spex` will discover feature interactions.
 
