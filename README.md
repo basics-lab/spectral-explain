@@ -45,7 +45,7 @@ Calling `explainer.interactions`, alongside a choice of interaction index, will 
 ```python
 import spex
 
-# X is a num_samples X num_features binary masking matrix
+# X is a (num_samples x num_features) binary masking matrix
 def value_function(X):
     return ...
 
