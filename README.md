@@ -1,7 +1,7 @@
 
 <h1 align="center">
   <br>
-  <img src="temp_logo.png" width="200">
+  <img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/spex.png" width="200">
   <br>
 
 </h1>
