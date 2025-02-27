@@ -1,10 +1,11 @@
 from spex.support_recovery import support_recovery
-from spex.utils import mobius_to_fourier, fit_regression, bin_vecs_low_order
+from spex.utils import mobius_to_fourier, fit_regression, bin_vecs_low_order, lgboost_to_fourier
 import numpy as np
 import shapiq
 import lime.lime_tabular
 import warnings
 import pyrootutils
+import lightgbm as lgb
 
 warnings.filterwarnings("ignore")
 
@@ -16,7 +17,8 @@ SAMPLER_DICT = {
     "lime": "dummy",  # will use sampling from lime later on
     "faith_shapley": "dummy",  # will use sampling from Shap-IQ later on
     "faith_banzhaf": "uniform",
-    "shapley_taylor": "dummy"  # will use sampling from Shap-IQ later on
+    "shapley_taylor": "dummy",  # will use sampling from Shap-IQ later on
+    "proxy_spex": "uniform"
 }
 
 
@@ -106,6 +108,20 @@ def shapley_taylor(signal, b, order=1, **kwargs):
         stii_dict[tuple(loc)] = stii.values[ref]
     return mobius_to_fourier(stii_dict)
 
+def proxy_spex(signal, b, **kwargs):
+    coordinates = []
+    values = []
+    for m in range(len(signal.all_samples)):
+        for d in range(len(signal.all_samples[0])):
+            for z in range(2 ** b):
+                coordinates.append(signal.all_queries[m][d][z])
+                values.append(np.real(signal.all_samples[m][d][z]))
+
+    coordinates = np.array(coordinates)
+    values = np.array(values)
+    model = lgb.LGBMRegressor(verbose=-1)
+    model.fit(coordinates, values)
+    return lgboost_to_fourier(model)
 
 def get_ordered_methods(methods, max_order):
     ordered_methods = []

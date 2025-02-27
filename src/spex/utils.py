@@ -394,3 +394,54 @@ def fit_regression(type, results, signal, n, b, fourier_basis=True):
         regression_coefs = mobius_to_fourier(regression_coefs)
 
     return regression_coefs, support
+
+
+def lgboost_tree_to_fourier(tree_info):
+    """
+    Strips the Fourier coefficients from an LGBoost tree
+    Code adapted from:
+        Gorji, Ali, Andisheh Amrollahi, and Andreas Krause.
+        "Amortized SHAP values via sparse Fourier function approximation."
+        arXiv preprint arXiv:2410.06300 (2024).
+    """
+    def fourier_tree_sum(left_fourier, right_fourier, feature):
+        final_fourier = {}
+        all_freqs_tuples = set(left_fourier.keys()).union(right_fourier.keys())
+        for freq_tuple in all_freqs_tuples:
+            final_fourier[freq_tuple] = (left_fourier.get(freq_tuple, 0) + right_fourier.get(freq_tuple, 0)) / 2
+            current_freq_set = set(freq_tuple)
+            feature_set = {feature}
+            united_set = current_freq_set.union(feature_set)
+            final_fourier[tuple(sorted(united_set))] = (0.5 * left_fourier.get(freq_tuple, 0)
+                                                        - 0.5 * right_fourier.get(freq_tuple, 0))
+        return final_fourier
+
+    def dfs(node):
+        if 'leaf_value' in node:  # Leaf node in LightGBM JSON
+            return {tuple(): node['leaf_value']}
+        else:  # Split node
+            left_fourier = dfs(node['left_child'])
+            right_fourier = dfs(node['right_child'])
+            feature_index = node['split_feature']  # Feature index for LightGBM
+            return fourier_tree_sum(left_fourier, right_fourier, feature_index)
+
+    return dfs(tree_info['tree_structure'])
+
+def lgboost_to_fourier(model):
+    final_fourier = []
+    dumped_model = model.booster_.dump_model()
+    for tree_info in dumped_model['tree_info']:
+        final_fourier.append(lgboost_tree_to_fourier(tree_info))
+
+    combined_fourier = {}
+    for fourier in final_fourier:
+        for k, v in fourier.items():
+            tuple_k = [0] * model.n_features_
+            for feature in k:
+                tuple_k[feature] = 1
+            tuple_k = tuple(tuple_k)
+            if tuple_k in combined_fourier:
+                combined_fourier[tuple_k] += v
+            else:
+                combined_fourier[tuple_k] = v
+    return combined_fourier

@@ -102,7 +102,7 @@ review = "Her acting never fails to impress".split()
 sentiment_pipeline = pipeline("sentiment-analysis")
 
 def sentiment_masking(X):
-    masked_reviews = [" ".join([review[i] if x[i] == 1 else "[MASK]" for i in range(n)]) for x in X]
+    masked_reviews = [" ".join([review[i] if x[i] == 1 else "[MASK]" for i in range(len(review))]) for x in X]
     return [outputs['score'] if outputs['label'] == 'POSITIVE' else 1-outputs['score'] for outputs in sentiment_pipeline(masked_reviews)]
 
 explainer = spex.Explainer(value_function=sentiment_masking,

@@ -35,6 +35,7 @@ def run_and_evaluate_method(method, sampler, order, b, saved_samples_test):
         "shapley_taylor": shapley_taylor,
         "spex_hard": spex_hard,
         "spex_soft": spex_soft,
+        "proxy_spex": proxy_spex
     }.get(method, NotImplementedError())(sampler, b, order=order)
     end_time = time.time()
     return end_time - start_time, estimate_r2(reconstruction, saved_samples_test), reconstruction
@@ -128,10 +129,10 @@ if __name__ == "__main__":
     setup_root()
     numba.set_num_threads(8)
     TASK = 'sentiment'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, visual-qa
-    DEVICE = 'mps'  # choose DEVICE from cpu, mps, or cuda
-    NUM_EXPLAIN = 2  # the number of examples from TASK to be explained
-    MAX_ORDER = 2  # the max order of baseline interaction methods
-    Bs = [4, 6, 8]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
+    DEVICE = 'cuda'  # choose DEVICE from cpu, mps, or cuda
+    NUM_EXPLAIN = 1000  # the number of examples from TASK to be explained
+    MAX_ORDER = 1  # the max order of baseline interaction methods
+    Bs = [4]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
     NUM_TEST_SAMPLES = 1000  # number of uniformly drawn test samples to measure faithfulness
 
     # marginal attribution methods: shapley, banzhaf, lime
@@ -139,7 +140,7 @@ if __name__ == "__main__":
     # spex attribution methods: spex_hard (faster decoding), spex_soft (slower decoding for better performance)
     METHODS = ['shapley', 'banzhaf', 'lime',
                'faith_banzhaf', 'faith_shapley', 'shapley_taylor',
-               'spex_hard', 'spex_soft']
+               'spex_hard', 'spex_soft', 'proxy_spex']
 
     if DEVICE == 'cuda':
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
