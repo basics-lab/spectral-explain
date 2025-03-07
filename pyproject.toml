@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "spectral-explain"
-version = "0.0.1"
+version = "0.0.1.1"
 dependencies = [
   "sparse-transform",
   "tqdm",
@@ -25,6 +25,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+license = "MIT"
+license-files = ["LICENSE"]
 
 [project.optional-dependencies]
 data = [
@@ -45,3 +47,14 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/basics-lab/spectral-explain"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spex"]
+
+[tool.hatch.build.targets.sdist]
+include = ["temp_log.png"]
+exclude = [
+  "results/",
+  "experiments/",
+  "data/",
+]
