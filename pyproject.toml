@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "spectral-explain"
-version = "0.0.1"
+name = "spectralexplain"
+version = "0.0.3"
 dependencies = [
   "sparse-transform",
   "tqdm",
@@ -29,16 +29,13 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 [project.optional-dependencies]
-data = [
+dev = [
   "pandas",
   "torch>2.4",
   "transformers",
   "openai",
   "openml",
-  "pillow"
-]
-dev = [
-  "spex[data]",
+  "pillow",
   "shapiq",
   "lime",
   "pyrootutils",
@@ -49,10 +46,9 @@ dev = [
 Homepage = "https://github.com/basics-lab/spectral-explain"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/spex"]
+packages = ["src/spectralexplain"]
 
 [tool.hatch.build.targets.sdist]
-include = ["temp_log.png"]
 exclude = [
   "results/",
   "experiments/",

@@ -1,5 +1,5 @@
-from spex.utils import *
-
+import numpy as np
+import spectralexplain as spex
 
 class Interactions:
     def __init__(self, fourier_transform, features, index, sample_budget):
@@ -21,16 +21,16 @@ class Interactions:
         if self.index.lower() == "fourier":
             return self.fourier_transform
         else:
-            mobius_transform = fourier_to_mobius(self.fourier_transform)
+            mobius_transform = spex.utils.fourier_to_mobius(self.fourier_transform)
             if self.index.lower() == "mobius":
                 return mobius_transform
             else:
                 max_order = self.get_max_order(mobius_transform)
-                return {"fsii": mobius_to_faith_shapley_ii,
-                        "fbii": mobius_to_faith_banzhaf_ii,
-                        "stii": mobius_to_shapley_taylor_ii,
-                        "sii": mobius_to_shapley_ii,
-                        "bii": mobius_to_banzhaf_ii,
+                return {"fsii": spex.utils.mobius_to_faith_shapley_ii,
+                        "fbii": spex.utils.mobius_to_faith_banzhaf_ii,
+                        "stii": spex.utils.mobius_to_shapley_taylor_ii,
+                        "sii": spex.utils.mobius_to_shapley_ii,
+                        "bii": spex.utils.mobius_to_banzhaf_ii,
                         }.get(self.index.lower(), NotImplementedError())(mobius_transform, order=max_order)
 
     def sort_interactions(self, interactions):

@@ -1,4 +1,5 @@
 venv/
+test_venv/
 samples/
 saved_samples/
 dev/

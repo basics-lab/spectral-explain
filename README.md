@@ -1,7 +1,7 @@
 
 <h1 align="center">
   <br>
-  <img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/spex.png" width="200">
+  <img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/spex.png?raw=True" width="200">
   <br>
 
 </h1>
@@ -18,15 +18,12 @@
 
 <h2 id="installation">Installation</h2>
 
-To install the core `spex` package via PyPI, run:
-
+To install the core `spectralexplain` package via PyPI, run:
 ```
-pip install spectral-explain
+pip install spectralexplain
 ```
 
-To replicate the experiments in this repository, you need to install additional dependencies. To install `spex` with these optional dependencies, run:
-
-
+To replicate the experiments in this repository, you need to install additional dependencies. To install `spectralexplain` with these optional dependencies, run:
 ```
 git clone git@github.com:basics-lab/spectral-explain.git
 cd spectral-explain
@@ -35,15 +32,15 @@ pip install -e .[dev]
 
 <h2 id="quickstart">Quickstart</h2>
 
-`spex` can be used to quickly compute feature interactions for your models and datasets. Simply define a `value_function` which takes in a matrix of masking patterns and returns the model's outputs to masked inputs.
+`spectralexplain` can be used to quickly compute feature interactions for your models and datasets. Simply define a `value_function` which takes in a matrix of masking patterns and returns the model's outputs to masked inputs.
 
-Upon passing this function to the `Explainer` class, alongside the number of features in your dataset, `spex` will discover feature interactions.
+Upon passing this function to the `Explainer` class, alongside the number of features in your dataset, `spectralexplain` will discover feature interactions.
 
 Calling `explainer.interactions`, alongside a choice of interaction index, will return an `Interactions` object for any of the following interaction types:
 - `fbii` Faith-Banzhaf Interaction Index, `fsii` Faith-Shapley Interaction Index, `stii` Shapley-Taylor Interaction Index, `bii` Banzhaf Interaction Index, `sii` Shapley Interaction Index, `fourier` Fourier Interactions, `mobius` Mobius Interactions
 
 ```python
-import spex
+import spectralexplain as spex
 
 # X is a (num_samples x num_features) binary masking matrix
 def value_function(X):
@@ -60,7 +57,7 @@ print(explainer.interactions(index="fbii"))
 <h3>Tabular</h3>
 
 ```python
-import spex
+import spectralexplain as spex
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.datasets import load_breast_cancer
@@ -95,7 +92,7 @@ print(explainer.interactions(index="fbii"))
 <h3>Sentiment Analysis</h3>
 
 ```python
-import spex
+import spectralexplain as spex
 from transformers import pipeline
 
 review = "Her acting never fails to impress".split()
