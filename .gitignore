@@ -1,6 +1,7 @@
 venv/
 samples/
 saved_samples/
+dev/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

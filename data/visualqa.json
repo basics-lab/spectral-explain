@@ -1,9 +1,44 @@
 [
     {
-        "image_url": "https://img.freepik.com/premium-photo/small-dog-is-running-after-basketball-midair-dog-is-focus-background-is-blurry_14117-261805.jpg", 
+        "image_url": "data/images/dog.png", 
         "question": "What is shown in this image?", 
-        "target_output": "The image shows a dog playing with a basketball.",
+        "target_output": "The image shows a dog in mid-air, jumping to catch a basketball.",
         "nx": 8,
         "ny": 6
+    },
+    {
+        "image_url": "data/images/dog.png", 
+        "question": "What color is the basketball?", 
+        "target_output": "The basketball in the image is orange.",
+        "nx": 8,
+        "ny": 6
+    },
+    {
+        "image_url": "data/images/dog.png", 
+        "question": "In what season was this photo taken?", 
+        "target_output": "The photo appears to have been taken in autumn.",
+        "nx": 8,
+        "ny": 6
+    },
+    {
+        "image_url": "data/images/cars.jpg", 
+        "question": "What color is the car behind the white car?", 
+        "target_output": "The car behind the white car is red.",
+        "nx": 6,
+        "ny": 4
+    },
+    {
+        "image_url": "data/images/cars.jpg", 
+        "question": "What color is the car to right of the red car?", 
+        "target_output": "The car to the right of the red car is white.",
+        "nx": 6,
+        "ny": 4
+    },
+    {
+        "image_url": "data/images/cars.jpg", 
+        "question": "How many cars are in this image?", 
+        "target_output": "There are three cars in this image.",
+        "nx": 6,
+        "ny": 4
     }
 ]

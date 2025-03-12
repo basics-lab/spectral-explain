@@ -5,7 +5,6 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from PIL import Image
-import requests
 import json
 from itertools import islice
 from nltk.tokenize import word_tokenize, sent_tokenize
@@ -186,7 +185,7 @@ class VisualQA(TextDataset):
         with open('data/visualqa.json', 'r') as file:
             self.documents = json.load(file)
             for doc in self.documents:
-                doc["image"] = Image.open(requests.get(doc["image_url"], stream=True).raw).convert('RGB')  
+                doc["image"] = Image.open(doc["image_url"]).convert('RGB')  
 
 
 class Drop(TextDataset):
