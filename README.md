@@ -1,58 +1,4 @@
 
-<h1 align="center">
-  <br>
-  <img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/spex.png?raw=True" width="200">
-  <br>
-
-</h1>
-
-<h4 align="center">Spectral Explainer: Scalable Feature Interaction Attribution</h4>
-
-
-<p align="center">
-  <a href="#installation">Installation</a> •
-  <a href="#quickstart">Quickstart</a> •
-  <a href="#examples">Examples</a> •
-  <a href="#citation">Citation</a>
-</p>
-
-<h2 id="installation">Installation</h2>
-
-To install the core `spectralexplain` package via PyPI, run:
-```
-pip install spectralexplain
-```
-
-To replicate the experiments in this repository, you need to install additional dependencies. To install `spectralexplain` with these optional dependencies, run:
-```
-git clone git@github.com:basics-lab/spectral-explain.git
-cd spectral-explain
-pip install -e .[dev]
-```
-
-<h2 id="quickstart">Quickstart</h2>
-
-`spectralexplain` can be used to quickly compute feature interactions for your models and datasets. Simply define a `value_function` which takes in a matrix of masking patterns and returns the model's outputs to masked inputs.
-
-Upon passing this function to the `Explainer` class, alongside the number of features in your dataset, `spectralexplain` will discover feature interactions.
-
-Calling `explainer.interactions`, alongside a choice of interaction index, will return an `Interactions` object for any of the following interaction types:
-- `fbii` Faith-Banzhaf Interaction Index, `fsii` Faith-Shapley Interaction Index, `stii` Shapley-Taylor Interaction Index, `bii` Banzhaf Interaction Index, `sii` Shapley Interaction Index, `fourier` Fourier Interactions, `mobius` Mobius Interactions
-
-```python
-import spectralexplain as spex
-
-# X is a (num_samples x num_features) binary masking matrix
-def value_function(X):
-    return ...
-
-explainer = spex.Explainer(
-    value_function=value_function,
-    features=num_features,
-)
-
-print(explainer.interactions(index="fbii"))
-```
 <h2 id="examples">Examples</h2>
 <h3>Tabular</h3>
 
@@ -118,18 +64,4 @@ print(explainer.interactions(index="stii"))
 >>     ('fails', 'to'): -1.505
 >>     ('impress',): 1.436
 >> )
-```
-
-<h2 id="citation">Citation</h2>
-
-```bibtex
-@misc{kang2025spex,
-      title={SPEX: Scaling Feature Interaction Explanations for LLMs}, 
-      author={Justin Singh Kang and Landon Butler and Abhineet Agarwal and Yigit Efe Erginbas and Ramtin Pedarsani and Kannan Ramchandran and Bin Yu},
-      year={2025},
-      eprint={2502.13870},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2502.13870}, 
-}
 ```
