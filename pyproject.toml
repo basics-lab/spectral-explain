@@ -12,13 +12,8 @@ dependencies = [
   "scikit-learn",
 ]
 requires-python = ">=3.10"
-authors = [
-  { name="Justin Kang", email="justin_kang@berkeley.edu" },
-  { name="Landon Butler", email="landonb@berkeley.edu" },
-  { name="Yigit Efe Erginbas", email="erginbas@berkeley.edu" },
-  { name="Abhineet Agarwal", email="aa3797@berkeley.edu" },
-]
-description = "Spectral Explainer: Scalable Feature Interaction Attribution"
+authors = []
+description = "SPEX: Scalable Feature Interaction Attribution"
 readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -41,9 +36,6 @@ dev = [
   "pyrootutils",
   "matplotlib",
 ]
-
-[project.urls]
-Homepage = "https://github.com/basics-lab/spectral-explain"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/spectralexplain"]
