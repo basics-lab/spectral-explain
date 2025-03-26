@@ -41,7 +41,7 @@ def run_and_evaluate_method(method, sampler, order, b, saved_samples_test):
     return end_time - start_time, estimate_r2(reconstruction, saved_samples_test), reconstruction
 
 
-def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
+def faithfulness(explicands, model, methods, bs, max_order, num_test_samples, sparsity_reconstruction):
     """
     Evaluate the faithfulness of different explanation methods.
 
@@ -52,6 +52,7 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
     - bs: The list of sparsity parameters to use.
     - max_order: The maximum order of baseline interaction methods.
     - num_test_samples: The number of test samples to use for evaluation.
+    - sparsity_reconstruction: Whether or not to compute the reconstruction error by sparsity.
 
     Returns:
     - results. A python dictionary with removal results.
@@ -67,7 +68,8 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
         "methods": {f'{method}_{order}': {'time': np.zeros((len(explicands), count_b)),
                                           'test_r2': np.zeros((len(explicands), count_b)),
                                           'reconstructions': [[None] * count_b for _ in len(explicands)],
-                                          'sampler': None}
+                                          'sampler': None,
+                                          'sparsity_reconstruction': [[None] * count_b for _ in len(explicands)]}
                     for method, order in ordered_methods}
     }
 
@@ -117,6 +119,14 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
                     results["methods"][method_str]["test_r2"][i, j] = test_r2
                     results["methods"][method_str]["reconstructions"][i][j] = recon
                     print(f"{method_str}: {np.round(test_r2, 3)} test r2 in {np.round(max(time_taken, 0), 3)} seconds")
+                    if sparsity_reconstruction:
+                        sorted_reconstruction = [(k, v) for k, v in
+                                                 sorted(recon.items(), key=lambda item: -np.abs(item[1]))]
+                        sparse_recons = np.zeros(len(sorted_reconstruction))
+                        for sparsity in range(1, len(sorted_reconstruction) + 1):
+                            sparse_recons[sparsity - 1] = estimate_r2({k: v for k, v in sorted_reconstruction[:sparsity]},
+                                                               saved_samples_test)
+                        results["methods"][method_str]["sparsity_reconstruction"][i][j] = sparse_recons
             print()
         for s in active_sampler_dict.values():
             del s
@@ -134,6 +144,7 @@ if __name__ == "__main__":
     MAX_ORDER = 1  # the max order of baseline interaction methods
     Bs = [4]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
     NUM_TEST_SAMPLES = 1000  # number of uniformly drawn test samples to measure faithfulness
+    SPARSITY_RECONSTRUCTION = True  # whether to compute reconstruction by sparsity
 
     # marginal attribution methods: shapley, banzhaf, lime
     # interaction attribution methods: faith_banzhaf, faith_shapley, shapley_taylor
@@ -147,7 +158,7 @@ if __name__ == "__main__":
 
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
 
-    results = faithfulness(explicands, model, METHODS, Bs, MAX_ORDER, NUM_TEST_SAMPLES)
+    results = faithfulness(explicands, model, METHODS, Bs, MAX_ORDER, NUM_TEST_SAMPLES, SPARSITY_RECONSTRUCTION)
 
     if not os.path.exists('results/'):
         os.makedirs('results/')
