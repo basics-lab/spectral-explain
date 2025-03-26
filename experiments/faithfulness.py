@@ -66,7 +66,7 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples):
         "samples": np.zeros((len(explicands), count_b)),
         "methods": {f'{method}_{order}': {'time': np.zeros((len(explicands), count_b)),
                                           'test_r2': np.zeros((len(explicands), count_b)),
-                                          'reconstructions': [[None] * count_b] * len(explicands),
+                                          'reconstructions': [[None] * count_b for _ in len(explicands)],
                                           'sampler': None}
                     for method, order in ordered_methods}
     }
