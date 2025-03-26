@@ -124,7 +124,7 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples, sp
                                                  sorted(recon.items(), key=lambda item: -np.abs(item[1]))]
                         sparse_recons = np.zeros(len(sorted_reconstruction))
                         for sparsity in range(1, len(sorted_reconstruction) + 1):
-                            sparse_recons[sparsity - 1] = estimate_r2({k: v for k, v in sorted_reconstruction[:sparsity]},
+                            sparse_recons[sparsity - 1] = estimate_r2({k: recon[k] for k, _ in sorted_reconstruction[:sparsity]},
                                                                saved_samples_test)
                         results["methods"][method_str]["sparsity_reconstruction"][i][j] = sparse_recons
             print()
