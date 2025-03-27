@@ -4,8 +4,11 @@ import time
 import os
 import shutil
 from modelloader import get_model
-from spex.support_recovery import sampling_strategy
-from spex.utils import *
+#from spex.support_recovery import sampling_strategy
+#from spex.utils import *
+import torch
+from spectralexplain.support_recovery import sampling_strategy
+from spectralexplain.utils import *
 from experiment_utils import *
 
 
@@ -67,9 +70,9 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples, sp
         "samples": np.zeros((len(explicands), count_b)),
         "methods": {f'{method}_{order}': {'time': np.zeros((len(explicands), count_b)),
                                           'test_r2': np.zeros((len(explicands), count_b)),
-                                          'reconstructions': [[None] * count_b for _ in len(explicands)],
+                                          'reconstructions': [[None] * count_b for _ in range(len(explicands))],
                                           'sampler': None,
-                                          'sparsity_reconstruction': [[None] * count_b for _ in len(explicands)]}
+                                          'sparsity_reconstruction': [[None] * count_b for _ in range(len(explicands))]}
                     for method, order in ordered_methods}
     }
 
@@ -136,27 +139,33 @@ def faithfulness(explicands, model, methods, bs, max_order, num_test_samples, sp
 
 
 if __name__ == "__main__":
+    print(torch.cuda.is_available())
     setup_root()
-    numba.set_num_threads(8)
-    TASK = 'sentiment'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, visual-qa
+    #numba.set_num_threads(8)
+    TASK = 'drop'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, visual-qa
     DEVICE = 'cuda'  # choose DEVICE from cpu, mps, or cuda
-    NUM_EXPLAIN = 1000  # the number of examples from TASK to be explained
-    MAX_ORDER = 1  # the max order of baseline interaction methods
-    Bs = [4]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
+    NUM_EXPLAIN = 1  # the number of examples from TASK to be explained
+    MAX_ORDER = 4  # the max order of baseline interaction methods
+    Bs = [8]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
     NUM_TEST_SAMPLES = 1000  # number of uniformly drawn test samples to measure faithfulness
     SPARSITY_RECONSTRUCTION = True  # whether to compute reconstruction by sparsity
 
     # marginal attribution methods: shapley, banzhaf, lime
     # interaction attribution methods: faith_banzhaf, faith_shapley, shapley_taylor
     # spex attribution methods: spex_hard (faster decoding), spex_soft (slower decoding for better performance)
-    METHODS = ['shapley', 'banzhaf', 'lime',
-               'faith_banzhaf', 'faith_shapley', 'shapley_taylor',
-               'spex_hard', 'spex_soft', 'proxy_spex']
+    # METHODS = ['shapley', 'banzhaf', 'lime',
+    #            'faith_banzhaf', 'faith_shapley', 'shapley_taylor',
+    #            'spex_hard', 'spex_soft', 'proxy_spex']
+
+    METHODS = ['spex_hard', 'spex_soft']
 
     if DEVICE == 'cuda':
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
+    print(f'loading model and explicands')
+
     explicands, model = get_model(TASK, NUM_EXPLAIN, DEVICE)
+    print(explicands)
 
     results = faithfulness(explicands, model, METHODS, Bs, MAX_ORDER, NUM_TEST_SAMPLES, SPARSITY_RECONSTRUCTION)
 

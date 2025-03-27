@@ -1,5 +1,5 @@
-from spex.support_recovery import support_recovery
-from spex.utils import mobius_to_fourier, fit_regression, bin_vecs_low_order, lgboost_to_fourier
+from spectralexplain.support_recovery import support_recovery
+from spectralexplain.utils import mobius_to_fourier, fit_regression, bin_vecs_low_order#, lgboost_to_fourier
 import numpy as np
 import shapiq
 import lime.lime_tabular

@@ -197,6 +197,22 @@ class Drop(TextDataset):
         super().__init__()
         self.name = 'Drop'
         self._split = 'validation'
+    
+    def retrieve(self, num_explain, buckets = {range(16,32): 1, range(32,64): 1, range(64,128): 1, range(128,256): 1, range(256,512): 1, range(512,1024): 1}):
+        self.load()
+        buckets_satisfied = {k: False for k in buckets}
+        docs_to_return = []
+        for doc in self.documents:
+            for bucket in buckets:
+                if doc['n'] in bucket and not buckets_satisfied[bucket]:
+                    buckets_satisfied[bucket] = True
+                    docs_to_return.append(doc)
+            
+        return docs_to_return
+        # if num_explain > len(self.documents):
+        #     print(f'num_explain > test set size. Explaining all {len(self.documents)} test samples instead.')
+        #     num_explain = len(self.documents)
+        # return self.documents[:num_explain]
 
     def _get_answer_counts(self, doc):
         answer_counts = Counter(doc['answers_spans']['spans'])
@@ -205,15 +221,26 @@ class Drop(TextDataset):
         answer = most_frequent_answers[0]  # Choose the first one in case of a tie
         return answer
 
+    def _remove_duplicates(self):
+        seen_inputs = set()
+        unique_documents = []
+        for doc in self.documents:
+            input_tuple = tuple(doc['input'])
+            if input_tuple not in seen_inputs:
+                seen_inputs.add(input_tuple)
+                unique_documents.append(doc)
+        self.documents = unique_documents
+
     def load(self):
         dataset = load_dataset('drop', name = None, split = self._split)
         self.documents = []
         for doc in dataset:
             context_words = word_tokenize(doc['passage'])
             original_context = doc['passage']
-            question = f"Answer the following question: {doc['question']} based on the context provided below. Provide the shortest answer possible, long answers are not allowed."
+            question = f"Answer the following question based on the context provided below: {doc['question']}. Provide the shortest answer possible, long answers are not allowed."
             answer = self._get_answer_counts(doc)
             self.documents.append({'original': original_context, 'input': context_words, 'locations': [], 'question': question, 'answer': answer, 'n': len(context_words), 'id': doc['query_id']})
+        self._remove_duplicates()
        
     
 class HotpotQA(TextDataset):
@@ -228,13 +255,23 @@ class HotpotQA(TextDataset):
         self._split = 'validation'
 
     
+    def _remove_duplicates(self):
+        seen_inputs = set()
+        unique_documents = []
+        for doc in self.documents:
+            input_tuple = tuple(doc['input'])
+            if input_tuple not in seen_inputs:
+                seen_inputs.add(input_tuple)
+                unique_documents.append(doc)
+        self.documents = unique_documents
+    
     def load(self,  seed = 42, mini = False,**kwargs):
         documents = []
         dataset = load_dataset('hotpot_qa', self.task, self._split, trust_remote_code = True)[self._split]
         dataset = dataset.shuffle(seed = seed)
         for sample in dataset:
             sample_id = sample['id']
-            question = f'Answer the following question based on the context provided below: {sample["question"]}. Answer in a single word or phrase. Long answers are penalized heavily.'
+            question = f'Answer the following question based on the context provided below: {sample["question"]}. Provide the shortest answer possible, long answers are not allowed.'
             answer = sample['answer']
             all_sentences = [sent for par in sample['context']['sentences'] for sent in par]
             sent_to_loc = {sent: i for i, sent in enumerate(all_sentences)}      
@@ -250,12 +287,11 @@ class HotpotQA(TextDataset):
            
             documents.append({'answer': answer, 'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
                                 'question': question, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id, 'id': sample_id})
-            # documents.append({'answer': answer, 'original': original, 'input': all_sentences, 'titles': sample['context']['title'],
-            #                   'question': question, 'n': len(all_sentences), 'title_to_sent_id': title_to_sent_id,
-            #                   'supporting_facts': supporting_sentences,'mask_level': 'sentence', 'id': sample_id})
+
         
         self.documents = documents
-            
+        self._remove_duplicates()
+    
     def create_prompt(self, titles, all_sentences, title_to_sent_id):
         prompt = ""
         for i in range(len(titles)):
