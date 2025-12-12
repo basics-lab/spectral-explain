@@ -1,4 +1,6 @@
-
+<p align="center">
+  <b>⚠️ NOTE: We encourage using the implementation of SPEX within <a href="https://github.com/mmschlk/shapiq">shapiq</a>, which receives much more frequent maintenance. ⚠️</b>
+</p>
 <h1 align="center">
   <br>
   <img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/spex.png?raw=True" width="200">
@@ -123,13 +125,12 @@ print(explainer.interactions(index="stii"))
 <h2 id="citation">Citation</h2>
 
 ```bibtex
-@misc{kang2025spex,
-      title={SPEX: Scaling Feature Interaction Explanations for LLMs}, 
-      author={Justin Singh Kang and Landon Butler and Abhineet Agarwal and Yigit Efe Erginbas and Ramtin Pedarsani and Kannan Ramchandran and Bin Yu},
-      year={2025},
-      eprint={2502.13870},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2502.13870}, 
+@inproceedings{
+kang2025spex,
+title={{SPEX}: Scaling Feature Interaction Explanations for {LLM}s},
+author={Justin Singh Kang and Landon Butler and Abhineet Agarwal and Yigit Efe Erginbas and Ramtin Pedarsani and Bin Yu and Kannan Ramchandran},
+booktitle={Forty-second International Conference on Machine Learning},
+year={2025},
+url={https://openreview.net/forum?id=pRlKbAwczl}
 }
 ```
