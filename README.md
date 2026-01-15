@@ -39,7 +39,21 @@ pip install -e .[dev]
 Upon passing this function to the `Explainer` class, alongside the number of features in your dataset, `spectralexplain` will discover feature interactions.
 
 Calling `explainer.interactions`, alongside a choice of interaction index, will return an `Interactions` object for any of the following interaction types:
-- `fbii` Faith-Banzhaf Interaction Index, `fsii` Faith-Shapley Interaction Index, `stii` Shapley-Taylor Interaction Index, `bii` Banzhaf Interaction Index, `sii` Shapley Interaction Index, `fourier` Fourier Interactions, `mobius` Mobius Interactions
+
+<div align="center">
+  
+| Index | Full Name | Citation |
+| :--- | :--- | :--- | 
+| **`fourier`** | Fourier Interactions | [Ahmed et al. (1975)](https://www.researchgate.net/publication/3115888_Orthogonal_Transform_for_Digital_Signal_Processing) | 
+| **`mobius`** | Möbius Interactions (Harsanyi Dividends) | [Harsanyi (1959)](https://doi.org/10.2307/2525487), [Grabisch et al. (2000)](https://www.jstor.org/stable/3690575)|
+| **`bii`** | Banzhaf Interaction Index | [Grabisch et al. (2000)](https://www.jstor.org/stable/3690575) |
+| **`sii`** | Shapley Interaction Index | [Grabisch et al. (2000)](https://www.jstor.org/stable/3690575) |
+| **`fbii`** | Faith-Banzhaf Interaction Index | [Tsai et al. (2023)](https://jmlr.org/papers/v24/22-0202.html) |
+| **`fsii`** | Faith-Shapley Interaction Index | [Tsai et al. (2023)](https://jmlr.org/papers/v24/22-0202.html) | 
+| **`stii`** | Shapley-Taylor Interaction Index | [Sundararajan et al. (2020)](https://proceedings.mlr.press/v119/sundararajan20a.html) |
+
+
+</div>
 
 ```python
 import spectralexplain as spex
@@ -55,6 +69,8 @@ explainer = spex.Explainer(
 
 print(explainer.interactions(index="fbii"))
 ```
+
+First, a sparse Fourier representation is learned. Then, the representation is converted to your index of choice using the conversions in [Appendix C](https://openreview.net/forum?id=pRlKbAwczl) of our paper.
 <h2 id="examples">Examples</h2>
 <h3>Tabular</h3>
 
