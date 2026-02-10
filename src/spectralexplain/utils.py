@@ -501,22 +501,22 @@ class ExactSolver:
     def initialize_model(self):
         import os
         try:
-            with Env(empty=True) as env:
-                env.setParam("OutputFlag",   0)   # suppress solver progress log
-                env.setParam("LogToConsole", 0)   # suppress licence/banner/parameter echo
-            
-                # Support WLS/Cloud credentials via environment variables
-                wls_access_id = os.environ.get("GRB_WLSACCESSID")
-                wls_secret = os.environ.get("GRB_WLSSECRET")
-                license_id = os.environ.get("GRB_LICENSEID")
+            self.env = Env(empty=True)
+            self.env.setParam("OutputFlag",   0)   # suppress solver progress log
+            self.env.setParam("LogToConsole", 0)   # suppress licence/banner/parameter echo
+        
+            # Support WLS/Cloud credentials via environment variables
+            wls_access_id = os.environ.get("GRB_WLSACCESSID")
+            wls_secret = os.environ.get("GRB_WLSSECRET")
+            license_id = os.environ.get("GRB_LICENSEID")
 
-                if wls_access_id and wls_secret and license_id:
-                    env.setParam("WLSAccessID", wls_access_id)
-                    env.setParam("WLSSecret", wls_secret)
-                    env.setParam("LicenseID", int(license_id))
+            if wls_access_id and wls_secret and license_id:
+                self.env.setParam("WLSAccessID", wls_access_id)
+                self.env.setParam("WLSSecret", wls_secret)
+                self.env.setParam("LicenseID", int(license_id))
 
-                env.start()                         # now start the quiet environment
-                self.model = Model("Mobius Maximization Problem", env=env)
+            self.env.start()                         # now start the quiet environment
+            self.model = Model("Mobius Maximization Problem", env=self.env)
         except Exception as e:
             raise RuntimeError(
                 f"Gurobi failed to initialize: {e}. "
@@ -534,9 +534,9 @@ class ExactSolver:
         locs_set = set(self.locs)
 
         # Define the variables and objective function
-        y = self.model.addVars(len(self.locs), vtype=GRB.BINARY, name="y")
+        self.y = self.model.addVars(len(self.locs), vtype=GRB.BINARY, name="y")
         self.model.setObjective(
-            sum(self.coefs[i] * y[i] for i in range(len(self.locs))),
+            sum(self.coefs[i] * self.y[i] for i in range(len(self.locs))),
             GRB.MAXIMIZE if self.maximize else GRB.MINIMIZE
         )
 
@@ -546,7 +546,7 @@ class ExactSolver:
             for loc_subset in self.all_subsets(loc, order=len(loc) - 1):
                 if loc_subset in locs_set and loc_subset != loc:
                     j = self.locs.index(loc_subset)
-                    self.model.addConstr(y[i] <= y[j])
+                    self.model.addConstr(self.y[i] <= self.y[j])
                     count_constraint_1 += 1
 
         # Constraint 2: \sum_{i \in S} y_{i} <= |S| + y_S - 1, \forall S
@@ -555,8 +555,8 @@ class ExactSolver:
                 expr = LinExpr()
                 for idx in loc:
                     if (idx,) in locs_set:
-                        expr.add(y[self.locs.index((idx,))])
-                self.model.addConstr(expr <= len(loc) + y[i] - 1)
+                        expr.add(self.y[self.locs.index((idx,))])
+                self.model.addConstr(expr <= len(loc) + self.y[i] - 1)
                 count_constraint_2 += 1
 
         # (Optional) Constraint 3: \sum_{i \in n} y_{i} <= n
@@ -564,23 +564,27 @@ class ExactSolver:
             expr = LinExpr()
             for idx in range(self.n):
                 if (idx,) in locs_set:
-                    expr.add(y[self.locs.index((idx,))])
-            self.model.addConstr(expr >= self.exact_solution_order - len(self.missing_first_order))
+                    expr.add(self.y[self.locs.index((idx,))])
             self.model.addConstr(expr <= self.exact_solution_order)
         else:
             if self.max_solution_order is not None:
                 expr = LinExpr()
                 for idx in range(self.n):
                     if (idx,) in locs_set:
-                        expr.add(y[self.locs.index((idx,))])
+                        expr.add(self.y[self.locs.index((idx,))])
                 self.model.addConstr(expr <= self.max_solution_order)
 
     def solve(self):
         self.model.optimize()
+        
+        if self.model.SolCount == 0:
+            status = self.model.Status
+            raise RuntimeError(f"Gurobi failed to find a solution. Status code: {status}. Check if the problem is infeasible or hit a limit.")
+
         # Print the optimal values
         argmax = [0] * self.n
-        for i, var in enumerate(self.model.getVars()):
-            if len(self.locs[i]) == 1 and var.x > 0.5:
+        for i in range(len(self.locs)):
+            if len(self.locs[i]) == 1 and self.y[i].X > 0.5:
                 argmax[self.locs[i][0]] = 1
 
         if self.exact_solution_order is not None:
