@@ -1,12 +1,13 @@
 <p align="center">
-  <b>⚠️ NOTE: We encourage using the implementation of SPEX within <a href="https://github.com/mmschlk/shapiq">shapiq</a>, which receives much more frequent maintenance. ⚠️</b>
+  <b>⚠️ NOTE: We encourage using the implementation of [SPEX](https://openreview.net/forum?id=pRlKbAwczl) and [ProxySPEX](https://openreview.net/forum?id=KI8qan2EA7) within <a href="https://github.com/mmschlk/shapiq">shapiq</a>, which receives much more frequent maintenance. ⚠️</b>
 </p>
 <h1 align="center">
-  <br>
-  <img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/spex.png?raw=True" width="200">
-  <br>
-
-</h1>
+  <table align="center">
+    <tr>
+      <td align="center"><img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/spex.png?raw=True" width="200"></td>
+      <td align="center"><img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/ProxySPEX.png?raw=True" width="260"></td>
+    </tr>
+  </table>
 
 <h4 align="center">Spectral Explainer: Scalable Feature Interaction Attribution</h4>
 
@@ -32,11 +33,20 @@ cd spectral-explain
 pip install -e .[dev]
 ```
 
+### Requirements
+
+To use the `proxyspex` algorithm on Hugging Face models, you must have your Hugging Face API Token configured as an environment variable in your terminal:
+```bash
+export HF_TOKEN="your_hf_token_here"
+```
+
+To use the `ExactSolver` for finding the optimal value function, you will additionally need a valid [Gurobi License](https://www.gurobi.com/) configured on your machine.
+
 <h2 id="quickstart">Quickstart</h2>
 
 `spectralexplain` can be used to quickly compute feature interactions for your models and datasets. Simply define a `value_function` which takes in a matrix of masking patterns and returns the model's outputs to masked inputs.
 
-Upon passing this function to the `Explainer` class, alongside the number of features in your dataset, `spectralexplain` will discover feature interactions.
+Upon passing this function to the `Explainer` class, alongside the number of features in your dataset, `spectralexplain` will discover feature interactions. You can specify `algorithm="proxyspex"` to use the recent [ProxySPEX](https://openreview.net/forum?id=KI8qan2EA7) algorithm, or use the default [SPEX](https://openreview.net/forum?id=pRlKbAwczl) algorithm.
 
 Calling `explainer.interactions`, alongside a choice of interaction index, will return an `Interactions` object for any of the following interaction types:
 
@@ -65,6 +75,7 @@ def value_function(X):
 explainer = spex.Explainer(
     value_function=value_function,
     features=num_features,
+    algorithm="proxyspex" # Optional: defaults to "spex"
 )
 
 print(explainer.interactions(index="fbii"))
@@ -91,7 +102,8 @@ def tabular_masking(X):
 explainer = spex.Explainer(
     value_function=tabular_masking,
     features=range(len(test_point)),
-    sample_budget=1000
+    sample_budget=1000,
+    algorithm="proxyspex"
 )
 
 print(explainer.interactions(index="fbii"))
@@ -138,15 +150,41 @@ print(explainer.interactions(index="stii"))
 >> )
 ```
 
+<h3>Optimizing the Value Function</h3>
+
+```python
+import spectralexplain as spex
+
+# A basic example of finding the optimal feature perturbations to maximize the value function
+# given a sparse Fourier interaction representation.
+
+solver = spex.utils.ExactSolver(
+    fourier_dictionary=explainer.fourier_transform,
+    maximize=True, 
+    exact_solution_order=5 # Optional: specify exact number of features to select
+)
+optimal_features = solver.solve()
+print("Optimal feature selection:", optimal_features)
+```
+
 <h2 id="citation">Citation</h2>
 
 ```bibtex
 @inproceedings{
-kang2025spex,
-title={{SPEX}: Scaling Feature Interaction Explanations for {LLM}s},
-author={Justin Singh Kang and Landon Butler and Abhineet Agarwal and Yigit Efe Erginbas and Ramtin Pedarsani and Bin Yu and Kannan Ramchandran},
-booktitle={Forty-second International Conference on Machine Learning},
-year={2025},
-url={https://openreview.net/forum?id=pRlKbAwczl}
+  kang2025spex,
+  title={{SPEX}: Scaling Feature Interaction Explanations for {LLM}s},
+  author={Justin Singh Kang and Landon Butler and Abhineet Agarwal and Yigit Efe Erginbas and Ramtin Pedarsani and Bin Yu and Kannan Ramchandran},
+  booktitle={Forty-second International Conference on Machine Learning},
+  year={2025},
+  url={https://openreview.net/forum?id=pRlKbAwczl}
+}
+
+@inproceedings{
+  butler2025proxyspex,
+  title={ProxySPEX: Inference-Efficient Interpretability via Sparse Feature Interactions in LLMs},
+  author={Landon Butler and Abhineet Agarwal and Justin Singh Kang and Yigit Efe Erginbas and Bin Yu and Kannan Ramchandran},
+  booktitle={The Thirty-ninth Annual Conference on Neural Information Processing Systems},
+  year={2025},
+  url={https://openreview.net/forum?id=KI8qan2EA7}
 }
 ```

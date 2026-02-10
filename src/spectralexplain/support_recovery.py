@@ -47,8 +47,6 @@ def support_recovery(type, signal, b, t=5):
         "regress": 'lasso',
         "res_energy_cutoff": 0.9,
         "trap_exit": True,
-        "verbosity": 0,
-        "report": False,
         "peel_average": True,
     }
     return {key: np.real(value) for key, value in transform(signal, **qsft_args).items()}

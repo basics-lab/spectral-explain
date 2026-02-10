@@ -10,6 +10,8 @@ dependencies = [
   "tqdm",
   "numpy>1.18",
   "scikit-learn",
+  "pandas",
+  "lightgbm",
 ]
 requires-python = ">=3.10"
 authors = [
@@ -30,7 +32,6 @@ license-files = ["LICENSE"]
 
 [project.optional-dependencies]
 dev = [
-  "pandas",
   "torch>2.4",
   "transformers",
   "openai",
@@ -40,6 +41,7 @@ dev = [
   "lime",
   "pyrootutils",
   "matplotlib",
+  "gurobipy",
 ]
 
 [project.urls]

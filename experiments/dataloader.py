@@ -274,19 +274,6 @@ class HotpotQA(TextDataset):
             for sent in sample['context']['sentences'][i]:
                 title_to_sent_id[title].append(sent_to_loc[sent])
         return title_to_sent_id
-
-    # def _get_supporting_facts(self, sample,sent_to_loc):
-    
-    #     # Title and sentence id of the supporting facts with respect to that title
-    #     supporting_facts = [(sample['supporting_facts']['title'][i], sample['supporting_facts']['sent_id'][i]) for i 
-    #                         in range(len(sample['supporting_facts']['title']))]
-    #     supporting_sentences = []
-    #     for title, sent_idx in supporting_facts:
-    #         title_idx = sample['context']['title'].index(title)
-    #         supporting_sentence = sample['context']['sentences'][title_idx][sent_idx]
-    #         supporting_sentence_loc = sent_to_loc[supporting_sentence]
-    #         supporting_sentences.append((title, supporting_sentence, supporting_sentence_loc))
-    #     return supporting_sentences
     
 
 

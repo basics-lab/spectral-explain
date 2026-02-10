@@ -4,8 +4,8 @@ import time
 import os
 import shutil
 from modelloader import get_model
-from spex.support_recovery import sampling_strategy
-from spex.utils import *
+from spectralexplain.support_recovery import sampling_strategy
+from spectralexplain.utils import *
 from experiment_utils import *
 
 

@@ -5,7 +5,8 @@ import time
 import os
 import shutil
 from modelloader import get_model
-from spex.support_recovery import sampling_strategy
+from spectralexplain.support_recovery import sampling_strategy
+from spectralexplain.utils import ExactSolver
 from experiment_utils import *
 
 
@@ -35,13 +36,13 @@ def flip_node(i, tree, all_on_sum):
     return tree, all_on_sum
 
 
-def compute_best_subtraction(transform, method, num_to_subtract, direction):
+def compute_best_subtraction(transform, method, num_to_subtract, direction, sampling_function=None):
     """
     Compute the best feature subtraction based on the given method.
 
     Parameters:
     - transform: The transformation of the model's explanation function.
-    - method: The method used for feature subtraction ('greedy', 'smart-greedy', 'linear').
+    - method: The method used for feature subtraction ('greedy', 'exact', 'linear').
     - num_to_subtract: The maximum number of features to subtract.
     - direction: The direction of the evaluation (True for positive, False for negative).
 
@@ -82,25 +83,19 @@ def compute_best_subtraction(transform, method, num_to_subtract, direction):
             num_to_subtract -= 1
             subtracted.append(best)
             masks.append(mask.copy())
-    elif method == 'smart-greedy':
-        tree, best_val = make_dependancy_tree(list_of_interactions, n)
-        val = best_val
-        while num_to_subtract > 0:
-            best = None
-            for i in range(n):
-                if i in subtracted:
-                    continue
-                tree, val = flip_node(i, tree, val)
-                if (val > best_val) != direction:
-                    best = i
-                    best_val = val
-                tree, val = flip_node(i, tree, val)
-            if best is None:
-                break
-            tree, val = flip_node(best, tree, val)
-            subtracted.append(best)
-            num_to_subtract -= 1
-            masks.append([1 if i not in subtracted else 0 for i in range(n)])
+    elif method == 'exact':
+        solver = ExactSolver(
+            fourier_dictionary=transform, 
+            maximize=direction, 
+            exact_solution_order=num_to_subtract
+        )
+        optimal_features = solver.solve()
+        for i in range(n):
+            if optimal_features[i] == 1:
+                subtracted.append(i)
+                masks.append([1 if j not in subtracted else 0 for j in range(n)])
+                if len(subtracted) == num_to_subtract:
+                    break
     elif method == 'linear':
         list_of_interactions.sort(key=lambda x: len(x[0]) + 1e-9 * x[1], reverse=not direction)  # DANGEROUS!
         num_to_subtract = min(num_to_subtract, len(list_of_interactions) - 1)
@@ -127,7 +122,7 @@ def subtraction_test(reconstruction, sampling_function, method, subtract_dist, d
 
     Parameters:
     - reconstruction: The local reconstruction of the model's explanation function.
-    - method: The method used for feature subtraction ('greedy', 'smart-greedy', 'linear').
+    - method: The method used for feature subtraction ('greedy', 'exact', 'linear').
     - subtract_dist: The maximum number of features to subtract.
     - direction: The direction of the evaluation (True for positive, False for negative, default is None).
 
@@ -135,7 +130,7 @@ def subtraction_test(reconstruction, sampling_function, method, subtract_dist, d
     - res: The differences in the model's output after each feature subtraction.
     - subtracted: The indices of the subtracted features.
     """
-    sub_mask, subtracted = compute_best_subtraction(reconstruction, method, sampling_function, subtract_dist, direction)
+    sub_mask, subtracted = compute_best_subtraction(reconstruction, method, subtract_dist, direction, sampling_function)
     f = sampling_function(sub_mask)
     res = abs(f[0] - f) / abs(f[0])
     if len(res) < subtract_dist + 1:
@@ -155,11 +150,14 @@ def run_and_evaluate_method(method, sampler, order, b, sampling_function, subtra
         "shapley_taylor": shapley_taylor,
         "spex_hard": spex_hard,
         "spex_soft": spex_soft,
+        "proxy_spex": proxy_spex
     }.get(method, NotImplementedError())(sampler, b, order=order)
+    
     if method in ["shapley", "banzhaf", "lime"]:
         subtraction_method = "linear"
     else:
-        subtraction_method = "greedy"
+        subtraction_method = "exact"
+        
     differences, subtracted_locs = subtraction_test(reconstruction, sampling_function,
                                                     subtraction_method, subtract_dist, direction)
     return differences, subtracted_locs
@@ -208,8 +206,8 @@ def removal(explicands, model, methods, bs, max_order, subtract_dist):
         save_dir = 'samples/' + unix_time_seconds
 
         # Sample explanation function for choice of max b
-        spex_signal, num_samples = sampling_strategy(sampling_function, max(bs), n, save_dir)
-        results["samples"][i, :] = [num_samples[b-3] for b in bs]
+        spex_signal, num_samples = sampling_strategy(sampling_function, min(bs), max(bs), n, save_dir)
+        results["samples"][i, :] = [num_samples[b] for b in bs]
 
         # Draws an equal number of uniform samples
         active_sampler_dict = {"spex": spex_signal}
@@ -253,8 +251,8 @@ def removal(explicands, model, methods, bs, max_order, subtract_dist):
 if __name__ == "__main__":
     setup_root()
     numba.set_num_threads(8)
-    TASK = 'cancer'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, visual-qa
-    DEVICE = 'cpu'  # choose DEVICE from cpu, mps, or cuda
+    TASK = 'sentiment'  # choose TASK from parkinsons, cancer, sentiment, puzzles, drop, hotpotqa, visual-qa
+    DEVICE = 'cuda'  # choose DEVICE from cpu, mps, or cuda
     NUM_EXPLAIN = 500  # the number of examples from TASK to be explained
     MAX_ORDER = 2  # the max order of baseline interaction methods
     Bs = [4, 6, 8]  # (list) range of sparsity parameters B, samples ~15 * 2^B * log(number of features), rec. B = 8
@@ -265,7 +263,7 @@ if __name__ == "__main__":
     # spex attribution methods: spex_hard (faster decoding), spex_soft (slower decoding for better performance)
     METHODS = ['shapley', 'banzhaf', 'lime',
                'faith_banzhaf', 'faith_shapley', 'shapley_taylor',
-               'spex_hard', 'spex_soft']
+               'spex_hard', 'spex_soft', 'proxy_spex']
 
     if DEVICE == 'cuda':
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"

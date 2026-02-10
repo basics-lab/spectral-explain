@@ -1,4 +1,14 @@
 from itertools import chain, combinations
+try:
+    from gurobipy import Model, GRB, LinExpr, Env
+except ImportError:
+    pass
+try:
+    import pandas as pd
+    import lightgbm as lgb
+    from sklearn.model_selection import GridSearchCV
+except ImportError:
+    pass
 import math
 from tqdm import tqdm
 import numpy as np
@@ -283,6 +293,58 @@ def mobius_to_shapley_taylor_ii(mobius_dict, order):
                 stii_dict[entry] = contribution
     return stii_dict
 
+def lgboost_tree_to_fourier(tree_info):
+    """
+    Strips the Fourier coefficients from an LGBoost tree
+    Code adapted from:
+        Gorji, Ali, Andisheh Amrollahi, and Andreas Krause.
+        "Amortized SHAP values via sparse Fourier function approximation."
+        arXiv preprint arXiv:2410.06300 (2024).
+    """
+
+    def fourier_tree_sum(left_fourier, right_fourier, feature):
+        final_fourier = {}
+        all_freqs_tuples = set(left_fourier.keys()).union(right_fourier.keys())
+        for freq_tuple in all_freqs_tuples:
+            final_fourier[freq_tuple] = (left_fourier.get(freq_tuple, 0) + right_fourier.get(freq_tuple, 0)) / 2
+            current_freq_set = set(freq_tuple)
+            feature_set = {feature}
+            united_set = current_freq_set.union(feature_set)
+            final_fourier[tuple(sorted(united_set))] = (0.5 * left_fourier.get(freq_tuple, 0)
+                                                        - 0.5 * right_fourier.get(freq_tuple, 0))
+        return final_fourier
+
+    def dfs(node):
+        if 'leaf_value' in node:  # Leaf node in LightGBM JSON
+            return {tuple(): node['leaf_value']}
+        else:  # Split node
+            left_fourier = dfs(node['left_child'])
+            right_fourier = dfs(node['right_child'])
+            feature_index = node['split_feature']  # Feature index for LightGBM
+            return fourier_tree_sum(left_fourier, right_fourier, feature_index)
+
+    return dfs(tree_info['tree_structure'])
+
+
+def lgboost_to_fourier(model):
+    final_fourier = []
+    dumped_model = model.booster_.dump_model()
+    for tree_info in dumped_model['tree_info']:
+        final_fourier.append(lgboost_tree_to_fourier(tree_info))
+
+    combined_fourier = {}
+    for fourier in final_fourier:
+        for k, v in fourier.items():
+            tuple_k = [0] * model.n_features_
+            for feature in k:
+                tuple_k[feature] = 1
+            tuple_k = tuple(tuple_k)
+            if tuple_k in combined_fourier:
+                combined_fourier[tuple_k] += v
+            else:
+                combined_fourier[tuple_k] = v
+    return combined_fourier
+
 
 def get_top_interactions(interaction_index_dict, inputs, order=None, top_k=5):
     """
@@ -313,6 +375,221 @@ def get_top_interactions(interaction_index_dict, inputs, order=None, top_k=5):
                 interaction.append(inputs[j])
         significant_interactions.append((tuple(interaction), np.round(coef, 3)))
     return tuple(significant_interactions)
+
+
+def proxy_spex(samples, num_train_samples=None, **kwargs):
+    if num_train_samples is None:
+        num_train_samples = len(samples[0])
+    
+    param_grid = {
+        'max_depth': [3,5],
+        'n_estimators': [500, 1000, 5000],
+        'learning_rate': [0.01, 0.1],
+    }
+
+    # 2. Create a base model with fixed parameters
+    cols = [f"f{i}" for i in range(samples[0].shape[1])]
+
+    train_X = pd.DataFrame(
+        samples[0][:num_train_samples],
+        columns=cols
+    )
+    train_y = samples[1][:num_train_samples]
+    
+    base_model = lgb.LGBMRegressor(
+        verbose=-1,
+        n_jobs=-1,
+        random_state=0
+    )
+    
+    # 3. Set up GridSearchCV with cross-validation
+    grid_search = GridSearchCV(
+        estimator=base_model,
+        param_grid=param_grid,
+        scoring='r2',
+        cv=5,
+        verbose=0,
+        n_jobs=1
+    )
+
+    # 4. Fit the model on the training data
+    grid_search.fit(train_X, train_y)
+
+    best_model = grid_search.best_estimator_
+    four_dict = lgboost_to_fourier(best_model)
+    
+    # find index of null Fourier coefficient
+    list_keys = list(four_dict.keys())
+    nfc_idx = None
+    if tuple([0] * samples[0].shape[1]) in list_keys:
+        nfc_idx = list_keys.index(tuple([0] * samples[0].shape[1]))
+    four_coefs = np.array(list(four_dict.values()))
+    if nfc_idx is not None:
+        four_coefs[nfc_idx] = 0
+    four_coefs_sq = four_coefs ** 2
+    tot_energy = np.sum(four_coefs_sq)
+    sorted_four_coefs = np.sort(four_coefs_sq)[::-1]
+    thresh_idx_95 = np.argmin(np.cumsum(sorted_four_coefs / tot_energy) < .95)
+    thresh = np.sqrt(sorted_four_coefs[thresh_idx_95])
+    four_dict_trunc = {k: v for k,v in four_dict.items() if abs(v) > thresh}
+    support = np.array(list(four_dict_trunc.keys()))
+    
+    X = np.real(np.exp(train_X @ (1j * np.pi * support.T)))
+    reg = RidgeCV(alphas=np.logspace(-6, 6, 100), fit_intercept=False).fit(X, train_y)
+
+    regression_coefs = {}
+    for coef in range(support.shape[0]):
+        regression_coefs[tuple(support[coef, :].astype(int))] = reg.coef_[coef]
+    return regression_coefs
+
+
+class ExactSolver:
+    def __init__(self, fourier_dictionary, maximize=True, max_solution_order=None, exact_solution_order=None):
+        if "Env" not in globals():
+            raise ImportError("The 'gurobipy' library is required to use ExactSolver. Please install it with 'pip install gurobipy', and ensure you have a valid Gurobi license.")
+        
+        self.maximize = maximize
+        self.max_solution_order = max_solution_order
+        self.exact_solution_order = exact_solution_order
+        
+        self.fourier_dictionary = fourier_dictionary
+        assert len(self.fourier_dictionary) > 0, "Empty Dictionary"
+        self.n = len(list(self.fourier_dictionary.keys())[0])
+        self.mobius_dictionary = self.fourier_to_mobius(self.fourier_dictionary)
+
+        self.baseline_value = self.mobius_dictionary[tuple([0] * self.n)] if tuple(
+            [0] * self.n) in self.mobius_dictionary else 0
+
+        self.initialize_model()
+
+
+    def fourier_to_mobius(self, fourier_dict):
+        """
+        Convert Fourier coefficients to Mobius coefficients.
+
+        Parameters:
+        - fourier_dict: A dictionary of Fourier coefficients.
+
+        Returns:
+        - A dictionary of Mobius coefficients.
+        """
+        if len(fourier_dict) == 0:
+            return {}
+        else:
+            unscaled_mobius_dict = {}
+            for loc, coef in fourier_dict.items():
+                real_coef = np.real(coef)
+                for subset in self.all_subsets(np.nonzero(loc)[0]):
+                    one_hot_subset = tuple([1 if i in subset else 0 for i in range(self.n)])
+                    if one_hot_subset in unscaled_mobius_dict:
+                        unscaled_mobius_dict[one_hot_subset] += real_coef
+                    else:
+                        unscaled_mobius_dict[one_hot_subset] = real_coef
+
+            # multiply each entry by (-2)^(cardinality)
+            return {loc: val * np.power(-2.0, np.sum(loc)) for loc, val in unscaled_mobius_dict.items()}
+
+    def all_subsets(self, iterable, order=None):
+        """
+        Returns all subset tuples of the given iterable.
+        """
+        if not order:
+            return list(chain.from_iterable(combinations(iterable, r) for r in range(len(iterable) + 1)))
+        else:
+            return list(chain.from_iterable(combinations(iterable, r) for r in range(order, order + 1)))
+
+    def initialize_model(self):
+        import os
+        try:
+            with Env(empty=True) as env:
+                env.setParam("OutputFlag",   0)   # suppress solver progress log
+                env.setParam("LogToConsole", 0)   # suppress licence/banner/parameter echo
+            
+                # Support WLS/Cloud credentials via environment variables
+                wls_access_id = os.environ.get("GRB_WLSACCESSID")
+                wls_secret = os.environ.get("GRB_WLSSECRET")
+                license_id = os.environ.get("GRB_LICENSEID")
+
+                if wls_access_id and wls_secret and license_id:
+                    env.setParam("WLSAccessID", wls_access_id)
+                    env.setParam("WLSSecret", wls_secret)
+                    env.setParam("LicenseID", int(license_id))
+
+                env.start()                         # now start the quiet environment
+                self.model = Model("Mobius Maximization Problem", env=env)
+        except Exception as e:
+            raise RuntimeError(
+                f"Gurobi failed to initialize: {e}. "
+                "Please ensure you have a valid local 'gurobi.lic' or set the following environment variables: "
+                "GRB_WLSACCESSID, GRB_WLSSECRET, and GRB_LICENSEID."
+            ) from e
+        vars = [(tuple(np.nonzero(key)[0]), val) for key, val in self.mobius_dictionary.items() if sum(key) > 0]
+        self.locs, self.coefs = [i[0] for i in vars], [i[1] for i in vars]
+        # add in all first order terms
+        self.missing_first_order = []
+        for i in range(self.n):
+            if (i,) not in self.locs:
+                self.missing_first_order.append(i)
+        
+        locs_set = set(self.locs)
+
+        # Define the variables and objective function
+        y = self.model.addVars(len(self.locs), vtype=GRB.BINARY, name="y")
+        self.model.setObjective(
+            sum(self.coefs[i] * y[i] for i in range(len(self.locs))),
+            GRB.MAXIMIZE if self.maximize else GRB.MINIMIZE
+        )
+
+        # Constraint 1: y_S <= y_R \forall R \subset S, \forall S
+        count_constraint_1, count_constraint_2 = 0, 0
+        for i, loc in enumerate(self.locs):
+            for loc_subset in self.all_subsets(loc, order=len(loc) - 1):
+                if loc_subset in locs_set and loc_subset != loc:
+                    j = self.locs.index(loc_subset)
+                    self.model.addConstr(y[i] <= y[j])
+                    count_constraint_1 += 1
+
+        # Constraint 2: \sum_{i \in S} y_{i} <= |S| + y_S - 1, \forall S
+        for i, loc in enumerate(self.locs):
+            if len(loc) > 1:
+                expr = LinExpr()
+                for idx in loc:
+                    if (idx,) in locs_set:
+                        expr.add(y[self.locs.index((idx,))])
+                self.model.addConstr(expr <= len(loc) + y[i] - 1)
+                count_constraint_2 += 1
+
+        # (Optional) Constraint 3: \sum_{i \in n} y_{i} <= n
+        if self.exact_solution_order is not None:
+            expr = LinExpr()
+            for idx in range(self.n):
+                if (idx,) in locs_set:
+                    expr.add(y[self.locs.index((idx,))])
+            self.model.addConstr(expr >= self.exact_solution_order - len(self.missing_first_order))
+            self.model.addConstr(expr <= self.exact_solution_order)
+        else:
+            if self.max_solution_order is not None:
+                expr = LinExpr()
+                for idx in range(self.n):
+                    if (idx,) in locs_set:
+                        expr.add(y[self.locs.index((idx,))])
+                self.model.addConstr(expr <= self.max_solution_order)
+
+    def solve(self):
+        self.model.optimize()
+        # Print the optimal values
+        argmax = [0] * self.n
+        for i, var in enumerate(self.model.getVars()):
+            if len(self.locs[i]) == 1 and var.x > 0.5:
+                argmax[self.locs[i][0]] = 1
+
+        if self.exact_solution_order is not None:
+            old_sum = sum(argmax)
+            if old_sum < self.exact_solution_order:
+                for i in self.missing_first_order[:self.exact_solution_order-old_sum]:
+                    argmax[i] = 1
+
+        return argmax
 
 
 def bin_vecs_low_order(m, order):

@@ -1,5 +1,8 @@
-from spex.support_recovery import support_recovery
-from spex.utils import mobius_to_fourier, fit_regression, bin_vecs_low_order, lgboost_to_fourier
+from spectralexplain.support_recovery import support_recovery
+from spectralexplain.utils import mobius_to_fourier, fit_regression, bin_vecs_low_order, lgboost_to_fourier
+from spectralexplain.utils import proxy_spex as official_proxy_spex
+import pandas as pd
+from sklearn.model_selection import GridSearchCV
 import numpy as np
 import shapiq
 import lime.lime_tabular
@@ -109,6 +112,9 @@ def shapley_taylor(signal, b, order=1, **kwargs):
     return mobius_to_fourier(stii_dict)
 
 def proxy_spex(signal, b, **kwargs):
+    num_train_samples = signal.num_samples(b)
+    
+    # Flattens queries and samples into a single dataset
     coordinates = []
     values = []
     for m in range(len(signal.all_samples)):
@@ -117,11 +123,8 @@ def proxy_spex(signal, b, **kwargs):
                 coordinates.append(signal.all_queries[m][d][z])
                 values.append(np.real(signal.all_samples[m][d][z]))
 
-    coordinates = np.array(coordinates)
-    values = np.array(values)
-    model = lgb.LGBMRegressor(verbose=-1)
-    model.fit(coordinates, values)
-    return lgboost_to_fourier(model)
+    samples = (np.array(coordinates), np.array(values))
+    return official_proxy_spex(samples, num_train_samples, **kwargs)
 
 def get_ordered_methods(methods, max_order):
     ordered_methods = []

@@ -110,9 +110,9 @@ class Sentiment:
             batch_size = 1000
         else:
             batch_size = 2000
-        self.trained_model = pipeline("text-classification", model="lyrisha/distilbert-base-finetuned-sentiment",
-                                      device=self.device, batch_size=batch_size, torch_dtype=torch.float16,
-                                      top_k=None, function_to_apply='none', truncation=True)
+        
+        # Update the batch size of the existing model
+        self.trained_model.batch_size = batch_size
         return len(explicand['input'])
 
     def inference(self, X):
