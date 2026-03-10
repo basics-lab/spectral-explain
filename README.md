@@ -1,5 +1,5 @@
 <p align="center">
-  <b>⚠️ NOTE: We encourage using the implementation of [SPEX](https://openreview.net/forum?id=pRlKbAwczl) and [ProxySPEX](https://openreview.net/forum?id=KI8qan2EA7) within <a href="https://github.com/mmschlk/shapiq">shapiq</a>, which receives much more frequent maintenance. ⚠️</b>
+  <b>⚠️ NOTE: We encourage using the implementation of SPEX and ProxySPEX within <a href="https://github.com/mmschlk/shapiq">shapiq</a>, which receives much more frequent maintenance. ⚠️</b>
 </p>
 <h1 align="center">
   <table align="center">
