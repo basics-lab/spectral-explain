@@ -2,12 +2,11 @@
   <b>⚠️ NOTE: We encourage using the implementation of SPEX and ProxySPEX within <a href="https://github.com/mmschlk/shapiq">shapiq</a>, which receives much more frequent maintenance. ⚠️</b>
 </p>
 <h1 align="center">
-  <table align="center">
-    <tr>
-      <td align="center"><img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/spex.png?raw=True" width="200"></td>
-      <td align="center"><img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/ProxySPEX.png?raw=True" width="260"></td>
-    </tr>
-  </table>
+<p align="center">
+  <img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/spex.png?raw=True" width="200" style="vertical-align: middle;">
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="https://github.com/landonbutler/landonbutler.github.io/blob/master/imgs/ProxySPEX.png?raw=True" width="260" style="vertical-align: middle;">
+</p>
 
 <h4 align="center">Spectral Explainer: Scalable Feature Interaction Attribution</h4>
 
