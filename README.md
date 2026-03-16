@@ -35,7 +35,7 @@ pip install -e .[dev]
 
 To use the `ExactSolver` for finding the optimal value function, you will additionally need a valid [Gurobi License](https://www.gurobi.com/) configured on your machine.
 
-For Hugging Face models, you must have your Hugging Face API Token configured as an environment variable in your terminal:
+For Hugging Face models , you must install `transformers` and `torch`, and have your Hugging Face API Token configured as an environment variable in your terminal:
 ```bash
 export HF_TOKEN="your_hf_token_here"
 ```
@@ -75,7 +75,8 @@ def value_function(X):
 explainer = spex.Explainer(
     value_function=value_function,
     features=num_features,
-    algorithm="proxyspex" # Optional: defaults to "spex"
+    algorithm="proxyspex", # Optional: defaults to "spex"
+    max_order=5 # Optional: caps the interaction order
 )
 
 print(explainer.interactions(index="fbii"))
