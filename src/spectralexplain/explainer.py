@@ -34,15 +34,15 @@ class Explainer:
         if self.algorithm.lower() == "proxyspex" and self.sample_budget is not None:
             queries = np.random.choice(2, size=(self.sample_budget, self.num_features))
             values = self.value_function(queries)
-            return spex.utils.proxy_spex((queries, np.array(values)))
+            return spex.utils.proxy_spex((queries, np.array(values)), max_order=self.max_order)
         
         signal, _ = spex.sampling_strategy(self.value_function, 3, self.sparsity_parameter,
                                       self.num_features, sample_save_dir=self.name, t=self.max_order)
         if self.algorithm.lower() == "proxyspex":
-            return spex.utils.proxy_spex(signal, self.sparsity_parameter)
+            return spex.utils.proxy_spex(signal, self.sparsity_parameter, max_order=self.max_order)
         return spex.support_recovery("soft", signal, self.sparsity_parameter, self.max_order)
 
     def interactions(self, index):
         assert index.lower() in ["fourier", "mobius", "fsii", "fbii", "stii", "sii", "bii"], \
             "index must belong to set {Fourier, Mobius, FSII, FBII, STII, SII, BII}"
-        return spex.Interactions(self.fourier_transform, self.features, index, self.sample_budget)
+        return spex.Interactions(self.fourier_transform, self.features, index, self.sample_budget, order=self.max_order)

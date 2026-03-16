@@ -22,3 +22,5 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+venv/
+removals_experiments.log

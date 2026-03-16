@@ -2,7 +2,7 @@ import numpy as np
 import spectralexplain as spex
 
 class Interactions:
-    def __init__(self, fourier_transform, features, index, sample_budget):
+    def __init__(self, fourier_transform, features, index, sample_budget, order=None):
         assert len(fourier_transform) > 0, "Fourier transform is empty"
         self.fourier_transform = fourier_transform
         self.features = features
@@ -10,28 +10,30 @@ class Interactions:
         self.num_features = len(list(fourier_transform.keys())[0])
         self.sample_budget = sample_budget
 
-        self.interactions = self.sort_interactions(self.nonzero_keys(self.convert_fourier_interactions()))
-        self.max_order = max([len(key) for key in self.interactions.keys()])
+        mobius_transform = spex.utils.fourier_to_mobius(self.fourier_transform)
+        if order is None:
+            self.max_order = self.get_max_order(mobius_transform)
+        else:
+            self.max_order = order
+
+        self.interactions = self.sort_interactions(self.nonzero_keys(self.convert_fourier_interactions(mobius_transform)))
         self.is_baseline_value = tuple() in self.interactions
         self.baseline_value = self.interactions[tuple()] if self.is_baseline_value else 0
 
         self.num_interactions = len(self.interactions)
 
-    def convert_fourier_interactions(self):
+    def convert_fourier_interactions(self, mobius_transform):
         if self.index.lower() == "fourier":
             return self.fourier_transform
+        elif self.index.lower() == "mobius":
+            return mobius_transform
         else:
-            mobius_transform = spex.utils.fourier_to_mobius(self.fourier_transform)
-            if self.index.lower() == "mobius":
-                return mobius_transform
-            else:
-                max_order = self.get_max_order(mobius_transform)
-                return {"fsii": spex.utils.mobius_to_faith_shapley_ii,
-                        "fbii": spex.utils.mobius_to_faith_banzhaf_ii,
-                        "stii": spex.utils.mobius_to_shapley_taylor_ii,
-                        "sii": spex.utils.mobius_to_shapley_ii,
-                        "bii": spex.utils.mobius_to_banzhaf_ii,
-                        }.get(self.index.lower(), NotImplementedError())(mobius_transform, order=max_order)
+            return {"fsii": spex.utils.mobius_to_faith_shapley_ii,
+                    "fbii": spex.utils.mobius_to_faith_banzhaf_ii,
+                    "stii": spex.utils.mobius_to_shapley_taylor_ii,
+                    "sii": spex.utils.mobius_to_shapley_ii,
+                    "bii": spex.utils.mobius_to_banzhaf_ii,
+                    }.get(self.index.lower(), NotImplementedError())(mobius_transform, order=self.max_order)
 
     def sort_interactions(self, interactions):
         return dict(sorted(interactions.items(), key=lambda item: -abs(item[1])))

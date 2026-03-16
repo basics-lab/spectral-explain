@@ -381,8 +381,10 @@ def proxy_spex(samples, num_train_samples=None, **kwargs):
     if num_train_samples is None:
         num_train_samples = len(samples[0])
     
+    max_order = kwargs.get('max_order', 5)
+    max_depth_choices = [max(1, max_order - 2), max_order]
     param_grid = {
-        'max_depth': [3,5],
+        'max_depth': sorted(list(set(max_depth_choices))),
         'n_estimators': [500, 1000, 5000],
         'learning_rate': [0.01, 0.1],
     }
