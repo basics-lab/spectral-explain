@@ -25,6 +25,7 @@ To install the core `spectralexplain` package via PyPI, run:
 pip install spectralexplain
 ```
 
+### Requirements
 To replicate the experiments in this repository, you need to install additional dependencies. To install `spectralexplain` with these optional dependencies, run:
 ```
 git clone git@github.com:basics-lab/spectral-explain.git
@@ -32,14 +33,14 @@ cd spectral-explain
 pip install -e .[dev]
 ```
 
-### Requirements
+To use the `ExactSolver` for finding the optimal value function, you will additionally need a valid [Gurobi License](https://www.gurobi.com/) configured on your machine.
 
-To use the `proxyspex` algorithm on Hugging Face models, you must have your Hugging Face API Token configured as an environment variable in your terminal:
+For Hugging Face models, you must have your Hugging Face API Token configured as an environment variable in your terminal:
 ```bash
 export HF_TOKEN="your_hf_token_here"
 ```
 
-To use the `ExactSolver` for finding the optimal value function, you will additionally need a valid [Gurobi License](https://www.gurobi.com/) configured on your machine.
+
 
 <h2 id="quickstart">Quickstart</h2>
 
